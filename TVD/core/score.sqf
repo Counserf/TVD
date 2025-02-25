@@ -1,5 +1,5 @@
 #include "\x\cba\addons\main\script_macros.hpp" // Подключение CBA для асинхронных функций
-#include "..\config.sqf" // Подключение конфигурации миссии (TVD_Sides, TVD_SoldierCost и т.д.)
+#include "..\config.sqf" // Подключение конфигурации миссии
 
 /*
  * Обновляет текущие очки сторон в миссии
@@ -12,21 +12,21 @@
 TVD_updateScore = {
     params ["_endOpt" = 0, "_infUpdate" = 0, "_valUpdate" = 0];
 
-    // Подсчёт очков за обычных солдат (10 очков за каждого)
+    // Подсчёт очков за обычных солдат (10 очков за каждого) с учётом союзников
     TVD_SidesInfScore = [0, 0];
-    private _infUnits = allPlayers select { // Фильтрация игроков без ценности и не в резерве
+    private _infUnits = allPlayers select {
         private _side = side group _x;
-        _side in TVD_Sides && 
-        isNil {_x getVariable "TVD_UnitValue"} && 
-        !(_x getVariable ["TVD_soldierSentToRes", false])
+        (_side in TVD_BlueforAllies || _side in TVD_OpforAllies) && 
+        isNil {_x getVariable "TVD_UnitValue"} && // Проверяем, что юнит не ценный
+        !(_x getVariable ["TVD_soldierSentToRes", false]) // Исключаем отправленных в резерв
     };
     {
-        private _us = TVD_Sides find side group _x; // Индекс стороны игрока
-        if (_us == -1) then {continue}; // Пропуск, если сторона не найдена
-        if (isClass (configFile >> "CfgPatches" >> "ace_main") && {_x getVariable ["ace_captives_ishandcuffed", false]}) then { // Проверка на плен (ACE3)
+        private _us = if (side group _x in TVD_BlueforAllies) then {0} else {if (side group _x in TVD_OpforAllies) then {1} else {-1}};
+        if (_us == -1) then {continue};
+        if (isClass (configFile >> "CfgPatches" >> "ace_main") && {_x getVariable ["ace_captives_ishandcuffed", false]}) then {
             private _veh = vehicle _x;
-            private _onBase0 = !isNull trgBase_side0 && {_veh in list trgBase_side0}; // На базе west?
-            private _onBase1 = !isNull trgBase_side1 && {_veh in list trgBase_side1}; // На базе east?
+            private _onBase0 = !isNull trgBase_side0 && {_veh in list trgBase_side0};
+            private _onBase1 = !isNull trgBase_side1 && {_veh in list trgBase_side1};
             if (_onBase0 || _onBase1) then {
                 if ((_onBase0 && side group _x != trgBase_side0 getVariable ["TVD_BaseSide", sideLogic]) || 
                     (_onBase1 && side group _x != trgBase_side1 getVariable ["TVD_BaseSide", sideLogic])) then {
@@ -34,12 +34,12 @@ TVD_updateScore = {
                 };
             };
         };
-        TVD_SidesInfScore set [_us, (TVD_SidesInfScore select _us) + 10]; // Добавление 10 очков за солдата
+        TVD_SidesInfScore set [_us, (TVD_SidesInfScore select _us) + 10];
     } forEach _infUnits;
 
     // Подсчёт очков за ценные юниты (техника, командиры)
     TVD_SidesValScore = [0, 0];
-    private _validUnits = []; // Список для фильтрации живых юнитов
+    private _validUnits = [];
     {
         if (!alive _x || isNull _x) then { // Проверка на живых и существующих юнитов
             if (!isNil {_x getVariable "TVD_UnitValue"}) then {_x setVariable ["TVD_UnitValue", nil, true]}; // Очистка данных мёртвого юнита
@@ -47,13 +47,13 @@ TVD_updateScore = {
         };
         private _unitValue = _x getVariable ["TVD_UnitValue", []];
         if (_unitValue isEqualTo []) then {continue}; // Пропуск, если нет ценности
-        private _us = TVD_Sides find (_unitValue select 0); // Индекс изначальной стороны
-        if (_us == -1) then {continue}; // Пропуск, если сторона не найдена
+        private _us = if (_unitValue select 0 in TVD_BlueforAllies) then {0} else {if (_unitValue select 0 in TVD_OpforAllies) then {1} else {-1}};
+        if (_us == -1) then {continue};
         private _capOwner = _x getVariable ["TVD_CapOwner", ""]; // Владелец техники
         
         if (_capOwner != "") then { // Если юнит - техника
             if (_capOwner != _unitValue select 0) then { // Техника захвачена
-                _us = TVD_Sides find _capOwner;
+                _us = if (_capOwner in TVD_BlueforAllies) then {0} else {if (_capOwner in TVD_OpforAllies) then {1} else {-1}};
                 if (_us != -1) then {TVD_SidesValScore set [_us, (TVD_SidesValScore select _us) + (_unitValue select 1) / 2]}; // 50% ценности за захват
             } else if (_us != -1) then { // Техника осталась у владельца
                 TVD_SidesValScore set [_us, (TVD_SidesValScore select _us) + _unitValue select 1]; // Полная ценность
@@ -89,8 +89,8 @@ TVD_updateScore = {
         private _marker = _x select 0;
         private _side = getMarkerColor _marker call TVD_colorToSide; // Текущий владелец зоны
         _x set [1, _side]; // Обновление владельца в списке
-        if (_side in TVD_Sides) then {
-            private _ownerSide = TVD_Sides find _side;
+        if (_side in TVD_BueforAllies || _side in TVD_OpforAllies) then {
+            private _ownerSide = if (_side in TVD_BlueforAllies) then {0} else {1};
             TVD_SidesZonesScore set [_ownerSide, (TVD_SidesZonesScore select _ownerSide) + TVD_ZoneGain]; // Добавление очков за зону
         };
     } forEach TVD_capZones;
@@ -104,7 +104,7 @@ TVD_updateScore = {
  * Параметры:
  *   _endOpt: число (опционально) - причина завершения миссии (по умолчанию -1)
  *   _retrOn: число (опционально) - индекс отступившей стороны (по умолчанию -1)
- * Возвращает: массив - [победитель, степень превосходства, % west, % east, [потери west, потери east]]
+ * Возвращает: массив - [победитель, степень превосходства, % bluefor, % opfor, [потери bluefor, потери opfor]]
  */
 TVD_calculateWin = {
     params ["_endOpt" = -1, "_retrOn" = -1];
