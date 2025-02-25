@@ -1,0 +1,83 @@
+Установка:
+
+Создайте папку миссии (например, TVD_Mission.Stratis) в Documents\Arma 3\missions.
+
+Скопируйте папку TVD в корень миссии. Структура: 
+| TVD_Mission.Stratis/
+| - init.sqf 
+| - stringtable.xml
+| TVD/ 
+| | - config.sqf
+| | core/ 
+| | - init.sqf 
+| | - main.sqf 
+| | - score.sqf 
+| | - tasks.sqf 
+| | - end.sqf 
+| | actions/ 
+| | | - retreat.sqf 
+| | | - reserve.sqf 
+| | | - capture.sqf 
+| | | - hq_transfer.sqf 
+| | | - heavy_losses.sqf 
+| | client/ 
+| | | - actions.sqf 
+| | | - ui.sqf 
+| | utils/ 
+| | | - logging.sqf 
+| | | - helpers.sqf 
+| | ext/ 
+| | | - init.sqf 
+| | | - mark_box.sqf 
+| | | - frisk.sqf
+
+Добавьте в init.sqf: 
+// Проверка, выполняется ли код на сервере 
+if (isServer) then {  
+    private _sides = [west, east];                                      // Определение сторон конфликта (west - синие, east - красные, resistance - независимые) 
+    private _capZonesCount = 0;                                         // Количество зон захвата (0 - без зон, 1+ - с маркерами mZone_0, mZone_1 и т.д.) 
+    private _retreatPossible = [true, true];                            // Разрешение отступления для сторон (true - разрешено, false - запрещено) 
+    private _zoneGain = 50;                                             // Очки за контроль одной зоны (например, 50 или 100) 
+    private _retreatRatio = 0.3;                                        // Порог потерь для отступления (0.3 - 70% потерь, т.е. 30% остаётся)    
+    missionNamespace setVariable ["a3a_endMissionTime", 3600, true];    // Установка времени миссии в секундах (3600 = 1 час) 
+
+    waitUntil {sleep 1; count allPlayers > 0}; // Ожидание появления игроков перед запуском миссии
+    [_sides, _capZonesCount, _retreatPossible, _zoneGain, _retreatRatio] execVM "TVD\core\main.sqf"; // Запуск основного скрипта TVD с параметрами 
+}; 
+// Проверка, выполняется ли код на клиенте 
+if (hasInterface) then { 
+    // Запуск клиентских действий (отступление, резерв и т.д.) 
+    [] execVM "TVD\client\actions.sqf"; 
+};
+
+В редакторе создайте два триггера базы:
+trgBase_side0 (west): Переменная trgBase_side0, размер 50x50м, активация ANYPLAYER.
+trgBase_side1 (east): Переменная trgBase_side1, размер 50x50м, активация ANYPLAYER.
+
+Функционал:
+
+Захват зон: 
+- Контроль маркеров (например, mZone_0) для очков (TVD_ZoneGain). Укажите TVD_CapZonesCount в init.sqf.
+- Отступление: Индивидуальное (через базу, добавляет очки в резерв) или всей стороной (командир отдаёт приказ, передаёт технику, завершает миссию). Разрешено при 70% потерь (TVD_RetreatRatio = 0.3).
+- Техника: Захват (TVD_captureVehicle) или отправка в резерв (TVD_sendToReserve), с логированием уничтожения.
+- Тяжёлые потери: Миссия завершается, если остаётся менее 50% игроков (TVD_hl_ratio = 0.5).
+- Задачи: На основе триггеров/логики (TVD_TaskObject), ключевые задачи завершают миссию.
+- Логирование: События (TVD_logEvent) и итоги (TVD_logMission) сохраняются для админа, накапливаются, если админа нет.
+- Уведомления: Игрокам (TVD_notifyPlayers) и сторонам (TVD_notifySide), с дебрифингом в конце.
+
+Пример базовой настройки (захват триггера):
+
+В init.sqf добавьте после инициализации TVD: 
+private _trigger = createTrigger ["EmptyDetector", [5000, 5000, 0], true]; 
+_trigger setTriggerArea [50, 50, 0, false]; 
+_trigger setTriggerActivation ["WEST", "PRESENT", true]; 
+_trigger setVariable ["TVD_TaskObject", [west, 100, "Захватить зону", true, ["false", "false", "false", "false", "true"], true], true];
+
+Разместите играбельных юнитов для west и east рядом с trgBase_side0 и trgBase_side1.
+
+Как это работает:
+
+- Базы: trgBase_side0 и trgBase_side1 позволяют отступать и отправлять юнитов в резерв.
+- Задачи: Триггер активируется, когда west входит в зону, завершая миссию как ключевая задача (100 очков).
+- Время: Устанавливается через a3a_endMissionTime (по умолчанию 3600 секунд). Завершается с уведомлением, если время истекает.
+- Отступление: Разрешено при 70% потерь, завершение при 50% из-за тяжёлых потерь.

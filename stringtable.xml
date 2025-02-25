@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project name="TVD">
+    <Package name="TVD">
+        <Container name="Messages">
+            <!-- Уведомления и действия -->
+            <Key ID="STR_TVD_CaptureZone">
+                <English>Capture the zone</English>
+                <Russian>Захватить зону</Russian>
+            </Key>
+            <Key ID="STR_TVD_EnemyTanksDestroyed">
+                <English>Destroy enemy tanks</English>
+                <Russian>Уничтожить танки врага</Russian>
+            </Key>
+            <Key ID="STR_TVD_RetreatIndividual">
+                <English>Retreat to your rear</English>
+                <Russian>Самостоятельно отступить в свой тыл</Russian>
+            </Key>
+            <Key ID="STR_TVD_RetreatConfirm">
+                <English>CONFIRM RETREAT</English>
+                <Russian>ПОДТВЕРДИТЬ ОТСТУПЛЕНИЕ</Russian>
+            </Key>
+            <Key ID="STR_TVD_RetreatCancel">
+                <English>CANCEL RETREAT</English>
+                <Russian>ОТМЕНИТЬ ОТСТУПЛЕНИЕ</Russian>
+            </Key>
+            <Key ID="STR_TVD_SendToReserve">
+                <English>Send captive to rear</English>
+                <Russian>Отправить пленника в тыл</Russian>
+            </Key>
+            <Key ID="STR_TVD_SendVehicleToReserve">
+                <English>Send vehicle to rear</English>
+                <Russian>Отправить технику в тыл</Russian>
+            </Key>
+            <Key ID="STR_TVD_SideRetreatCommand">
+                <English>Side: Order retreat</English>
+                <Russian>КС: Команда на отступление</Russian>
+            </Key>
+            <Key ID="STR_TVD_MissionEnd">
+                <English>Mission completed</English>
+                <Russian>Завершение миссии</Russian>
+            </Key>
+            <Key ID="STR_TVD_TimeOut">
+                <English>Time's up</English>
+                <Russian>Время вышло</Russian>
+            </Key>
+            <Key ID="STR_TVD_HeavyLosses">
+                <English>Side has too few forces left</English>
+                <Russian>У стороны осталось слишком мало живой силы</Russian>
+            </Key>
+            <Key ID="STR_TVD_SideRetreated">
+                <English>Side %1 has retreated</English>
+                <Russian>Сторона %1 отступила</Russian>
+            </Key>
+            <Key ID="STR_TVD_KeyTaskCompleted">
+                <English>Side %1 completed key task</English>
+                <Russian>Сторона %1 выполнила ключевую задачу</Russian>
+            </Key>
+            <Key ID="STR_TVD_MissionResults">
+                <English>MISSION RESULTS</English>
+                <Russian>ИТОГИ МИССИИ</Russian>
+            </Key>
+            <Key ID="STR_TVD_NoRearError">
+                <English>Cannot retreat. Side has no rear.</English>
+                <Russian>Невозможно. У стороны нет тылов.</Russian>
+            </Key>
+            <Key ID="STR_TVD_CannotSendCaptive">
+                <English>Cannot send captive to rear.</English>
+                <Russian>Невозможно отправить пленника в тыл.</Russian>
+            </Key>
+            <Key ID="STR_TVD_CannotSendVehicle">
+                <English>Cannot send vehicle to rear.</English>
+                <Russian>Невозможно отправить технику в тыл.</Russian>
+            </Key>
+            <Key ID="STR_TVD_ExtendMission">
+                <English>Side: Extend mission (up to +5 min.)</English>
+                <Russian>КС: Продлить миссию (до +5 мин.)</Russian>
+            </Key>
+            <Key ID="STR_TVD_MissionExtended">
+                <English>Mission extended by commander</English>
+                <Russian>Миссия продлена КСом</Russian>
+            </Key>
+            <Key ID="STR_TVD_EndWarning">
+                <English>Mission will end in:\n\n%1\n\n(Commander can extend (%2 times))</English>
+                <Russian>Миссия завершится через:\n\n%1\n\n(КС может продлить (%2 раз(а)))</Russian>
+            </Key>
+            <Key ID="STR_TVD_EndExtendPrompt">
+                <English>You can extend the mission via ActionMenu - 'Extend mission'.</English>
+                <Russian>Вы можете продлить время через ActionMenu - 'Продлить миссию'.</Russian>
+            </Key>
+
+            <!-- Логи -->
+            <Key ID="STR_TVD_LogScheduled">
+                <English>Alive: %1-%2. Losses: %3-%4. Zones: %5-%6. Tasks: %7-%8.</English>
+                <Russian>Живых: %1-%2. Потери: %3-%4. Зоны: %5-%6. Задачи: %7-%8.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogTaskCompleted">
+                <English>%1 completed task: %2.</English>
+                <Russian>%1 выполнили задачу: %2.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogCapVehicle">
+                <English>%1 captured %2.</English>
+                <Russian>%1 захватили %2.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogSentToRes">
+                <English>%1 sent %2 to their rear.</English>
+                <Russian>%1 отправили %2 в свои тылы.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogSentToResMan">
+                <English>%1 sent captive %2(%4-%3) to their rear.</English>
+                <Russian>%1 отправили пленника %2(%4-%3) в свои тылы.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogRetreatSoldier">
+                <English>%1(%3-%2) retreated to their rear.</English>
+                <Russian>%1(%3-%2) самостоятельно отступил в свои тылы.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogRetreatScore">
+                <English>By retreating, %1 regained ~%2% of lost advantage.</English>
+                <Russian>Отступив, %1 компенсировала ~%2% потерянного преимущества.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogRetreatLossList">
+                <English>Losses of %1 during retreat: %2</English>
+                <Russian>Потери %1 при отступлении: %2</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogKilledMan">
+                <English>%1(%3-%2) was killed.</English>
+                <Russian>%1(%3-%2) был убит.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogKilledVehicle">
+                <English>%1 was destroyed.</English>
+                <Russian>%1 был уничтожен.</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogMissionEndAdmin">
+                <English>Mission ended by admin</English>
+                <Russian>Миссия завершена администратором</Russian>
+            </Key>
+            <Key ID="STR_TVD_LogMissionEndTime">
+                <English>Time’s up</English>
+                <Russian>Время вышло</Russian>
+            </Key>
+
+            <!-- Дебрифинг -->
+            <Key ID="STR_TVD_DebriefTie">
+                <English>DRAW</English>
+                <Russian>НИЧЬЯ</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefVictory">
+                <English>VICTORY</English>
+                <Russian>ПОБЕДА</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefDefeat">
+                <English>DEFEAT</English>
+                <Russian>ПОРАЖЕНИЕ</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefMinor">
+                <English>MINOR</English>
+                <Russian>ПРЕИМУЩЕСТВЕННАЯ</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefMajor">
+                <English>MAJOR</English>
+                <Russian>СЕРЬЁЗНАЯ</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefCrushing">
+                <English>CRUSHING</English>
+                <Russian>СОКРУШИТЕЛЬНАЯ</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefMinorLoss">
+                <English>MINOR</English>
+                <Russian>ПРЕИМУЩЕСТВЕННОЕ</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefMajorLoss">
+                <English>MAJOR</English>
+                <Russian>СЕРЬЁЗНОЕ</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefCrushingLoss">
+                <English>CRUSHING</English>
+                <Russian>СОКРУШИТЕЛЬНОЕ</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefResults">
+                <English>Mission Results:</English>
+                <Russian>Итоги миссии:</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefSideRatio">
+                <English>Side Advantage Ratio:</English>
+                <Russian>Соотношение преимущества сторон:</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefWinnerSide">
+                <English>(Winning side: %1)</English>
+                <Russian>(Победила сторона: %1)</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefRemainingForces">
+                <English>Remaining Forces:</English>
+                <Russian>Осталось на поле боя:</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefCasualties">
+                <English>Casualties:</English>
+                <Russian>Потери личного состава:</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefEventLog">
+                <English>Event Log:</English>
+                <Russian>Лог событий:</Russian>
+            </Key>
+            <Key ID="STR_TVD_DebriefControlledZones">
+                <English>Controlled Zones:</English>
+                <Russian>Контролируемые зоны:</Russian>
+            </Key>
+        </Container>
+    </Package>
+</Project>
