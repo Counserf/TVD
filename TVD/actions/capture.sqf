@@ -9,7 +9,7 @@
  */
 TVD_captureVehicle = {
     params ["_vehicle", "_unit"];
-    if (isNull _vehicle || isNull _unit) exitWith {}; // Выход, если техника или юнит отсутствуют
+    if (!(_vehicle isEqualType objNull) || !(_unit isEqualType objNull) || isNull _vehicle || isNull _unit) exitWith {diag_log "TVD/capture.sqf: Invalid vehicle or unit";}; // Выход, если техника или юнит отсутствуют или не объекты
     
     private _side = side _unit; // Сторона захватывающего юнита
     if (_side in TVD_Sides && _side != _vehicle getVariable ["TVD_CapOwner", sideLogic]) then { // Проверка: сторона в игре и не текущий владелец

@@ -40,9 +40,9 @@ TVD_retreatSide = {
  */
 TVD_retreatSoldier = {
     params ["_unit", ["_log", nil]];
-    if (isNull _unit) exitWith {}; // Выход, если юнит отсутствует
+    if (isNull _unit) exitWith {diag_log "TVD/retreat.sqf: Unit is null";}; // Выход, если юнит отсутствует
     private _us = TVD_Sides find side group _unit; // Индекс стороны юнита
-    if (_us == -1) exitWith {}; // Пропуск, если сторона не найдена
+    if (_us == -1) exitWith {diag_log "TVD/retreat.sqf: Unit side not in TVD_Sides";}; // Пропуск, если сторона не найдена
     private _unitName = name _unit; // Имя юнита
     
     // Уведомление ближайших игроков
@@ -67,7 +67,7 @@ TVD_retreatSoldier = {
         
         // Формирование данных для лога
         private _passData = [_unitName, side group _unit, if (count _unitValue > 2) then {(_unitValue select 2) call TVD_unitRole} else {""}, _unit getVariable ["TVD_GroupID", ""]];
-        if (!isNil "_log") then {_log = composeText [_log, parseText format ["%1, ", _unitName]]}; // Добавление в общий лог, если указан
+        if (!isNil "_log" && {_log isEqualType (parseText "")}) then {_log = composeText [_log, parseText format ["%1, ", _unitName]]}; // Добавление в общий лог, если указан и правильного типа
         ["retreatSoldier", _passData] call TVD_logEvent; // Логирование события
     };
 };

@@ -4,19 +4,20 @@
 /*
  * Завершает миссию с уведомлением и дебрифингом
  * Параметры:
- *   _endCause: число - причина завершения миссии (0-4)
- *   _express: логическое (опционально) - быстрое (true) или плавное (false) завершение
- *   _specificSide: сторона (опционально) - сторона для причин 2, 3, 4
+ *   _endCause: число - причина завершения миссии (0 - админ, 1 - время, 2 - тяжёлые потери, 3 - отступление, 4 - выполнение задачи)
+ *   _express: логическое (опционально) - быстрое (true) или плавное (false) завершение, по умолчанию false
+ *   _specificSide: сторона (опционально) - сторона для причин 2, 3, 4, по умолчанию sideLogic
+ *   _noReplay: логическое (опционально) - завершение без реплея (true), по умолчанию false
  */
 TVD_endMission = {
-    params ["_endCause", "_express" = false, "_specificSide" = sideLogic];
+    params ["_endCause", "_express" = false, "_specificSide" = sideLogic, ["_noReplay", false]];
     
     // Проверка времени миссии через a3a_endMissionTime
     if (isNil "a3a_endMissionTime") then {missionNamespace setVariable ["a3a_endMissionTime", 3600, true]}; // 1 час по умолчанию, если не задано
     if (_endCause == -1 && {time > missionNamespace getVariable ["a3a_endMissionTime", 3600]}) then {_endCause = 1}; // Время вышло
     
     // Расчёт результатов миссии с учётом причины завершения
-    private _missionResults = if (_endCause == 3 || _endCause == 2) then {
+    private _missionResults = if (_endCause == 2 || _endCause == 3) then {
         [_endCause, TVD_Sides find _specificSide] call TVD_calculateWin
     } else {
         [_endCause] call TVD_calculateWin
@@ -30,51 +31,56 @@ TVD_endMission = {
     private _winner = _missionResults select 0;
     private _textOut = [_endCause, _missionResults] call TVD_writeDebrief;
     
-    // Формирование сообщения для a3a_fnc_endMission
+    // Формирование сообщения для завершения
     private _endMessage = switch (_endCause) do {
-        case 0: {localize "STR_TVD_LogMissionEndAdmin"};
-        case 1: {localize "STR_TVD_TimeOut"};
-        case 2: {format [localize "STR_TVD_HeavyLosses", TVD_HeavyLosses]};
-        case 3: {format [localize "STR_TVD_SideRetreated", TVD_SideRetreat]};
-        case 4: {format [localize "STR_TVD_KeyTaskCompleted", TVD_MissionComplete]};
-        default {"Mission ended"};
+        case 0: {localize "STR_TVD_LogMissionEndAdmin"}; // Админ завершил миссию
+        case 1: {localize "STR_TVD_TimeOut"};           // Время миссии истекло
+        case 2: {format [localize "STR_TVD_HeavyLosses", TVD_HeavyLosses]}; // Тяжёлые потери
+        case 3: {format [localize "STR_TVD_SideRetreated", TVD_SideRetreat]}; // Сторона отступила
+        case 4: {format [localize "STR_TVD_KeyTaskCompleted", TVD_MissionComplete]}; // Ключевая задача выполнена
+        default {"Mission ended"}; // Неизвестная причина
     };
     
-    // Рассылка уведомления и дебрифинга всем клиентам через a3a
+    // Завершение миссии на сервере
     if (isServer) then {
-        [_endMessage, _winner] call a3a_fnc_endMission; // Завершение миссии через a3a
-    };
-    
-    // Локальная обработка дебрифинга для клиентов
-    [[_textOut, _winner, _express, _missionResults select 1], {
-        params ["_textOut", "_winner", "_express", "_sup"];
-        private _isPlayerWin = (playerSide in ([_winner] call BIS_fnc_friendlySides)) && (_winner != sideLogic); // Проверка победы стороны игрока
-        private _tColor = if (_isPlayerWin) then {"#057f05"} else {"#7f0505"}; // Зелёный для победы, красный для поражения
-        private _compText = if (_sup == 0) then { // Ничья
-            parseText format ["<t size='2.0' align='center' shadow='2'>%1</t><br/>", localize "STR_TVD_DebriefTie"]
-        } else { // Победа или поражение
-            private _prefs = if (_isPlayerWin) then { // Массив степеней победы
-                [localize "STR_TVD_DebriefMinor", localize "STR_TVD_DebriefMajor", localize "STR_TVD_DebriefCrushing"]
-            } else { // Массив степеней поражения
-                [localize "STR_TVD_DebriefMinorLoss", localize "STR_TVD_DebriefMajorLoss", localize "STR_TVD_DebriefCrushingLoss"]
-            };
-            composeText [parseText format ["<t size='2.0' color='%1' align='center' shadow='2'>%2 %3</t><br/>", 
-                _tColor, 
-                _prefs select (_sup - 1), 
-                if (_isPlayerWin) then {localize "STR_TVD_DebriefVictory"} else {localize "STR_TVD_DebriefDefeat"}
-            ]]
-        };
-        
-        _textOut = composeText [_compText, _textOut]; // Объединение заголовка с текстом
-        if (player != vehicle player) then {(vehicle player) addEventHandler ["HandleDamage", {false}]}; // Отключение урона для техники игрока
-        player addEventHandler ["HandleDamage", {false}]; // Отключение урона для игрока
-        
-        if (_express) then {
-            [localize "STR_TVD_MissionResults", _textOut] spawn TVD_quickEnd; // Быстрое завершение
+        if (_noReplay) then {
+            ["Миссия завершена администратором"] remoteExec ["hint", 0]; // Уведомление всем игрокам
+            sleep 2; // Небольшая задержка для отображения уведомления
+            [_endMessage] remoteExec ["endMission", 0]; // Прямое завершение без реплея через дефолтный Arma 3 механизм
         } else {
-            [localize "STR_TVD_MissionEnd", _textOut, _isPlayerWin] spawn TVD_smoothEnd; // Плавное завершение
+            [_endMessage, _winner] call a3a_fnc_endMission; // Завершение через a3a с возможностью реплея
+            // Локальная обработка дебрифинга для клиентов (только если не _noReplay)
+            [[_textOut, _winner, _express, _missionResults select 1], {
+                params ["_textOut", "_winner", "_express", "_sup"];
+                private _isPlayerWin = (playerSide in ([_winner] call BIS_fnc_friendlySides)) && (_winner != sideLogic); // Проверка победы стороны игрока
+                private _tColor = if (_isPlayerWin) then {"#057f05"} else {"#7f0505"}; // Зелёный для победы, красный для поражения
+                private _compText = if (_sup == 0) then { // Ничья
+                    parseText format ["<t size='2.0' align='center' shadow='2'>%1</t><br/>", localize "STR_TVD_DebriefTie"]
+                } else { // Победа или поражение
+                    private _prefs = if (_isPlayerWin) then { // Массив степеней победы
+                        [localize "STR_TVD_DebriefMinor", localize "STR_TVD_DebriefMajor", localize "STR_TVD_DebriefCrushing"]
+                    } else { // Массив степеней поражения
+                        [localize "STR_TVD_DebriefMinorLoss", localize "STR_TVD_DebriefMajorLoss", localize "STR_TVD_DebriefCrushingLoss"]
+                    };
+                    composeText [parseText format ["<t size='2.0' color='%1' align='center' shadow='2'>%2 %3</t><br/>", 
+                        _tColor, 
+                        _prefs select (_sup - 1), 
+                        if (_isPlayerWin) then {localize "STR_TVD_DebriefVictory"} else {localize "STR_TVD_DebriefDefeat"}
+                    ]]
+                };
+                
+                _textOut = composeText [_compText, _textOut]; // Объединение заголовка с текстом
+                if (player != vehicle player) then {(vehicle player) addEventHandler ["HandleDamage", {false}]}; // Отключение урона для техники игрока
+                player addEventHandler ["HandleDamage", {false}]; // Отключение урона для игрока
+                
+                if (_express) then {
+                    [localize "STR_TVD_MissionResults", _textOut] spawn TVD_quickEnd; // Быстрое завершение
+                } else {
+                    [localize "STR_TVD_MissionEnd", _textOut, _isPlayerWin] spawn TVD_smoothEnd; // Плавное завершение
+                };
+            }] remoteExec ["call", 0];
         };
-    }] remoteExec ["call", 0];
+    };
 };
 
 /*
@@ -85,7 +91,7 @@ TVD_endMission = {
  */
 TVD_quickEnd = {
     params ["_title", "_text"];
-    private _timer = diag_tickTime; // Локальное время для синхронизации
+    private _timer = diag_tickTime; // Локальное время для отсчёта
     while {diag_tickTime - _timer < 25} do { // Показ на 25 секунд
         _title hintC _text; // Отображение дебрифинга
         hintC_arr_EH = findDisplay 72 displayAddEventHandler ["unload", { // Обработчик закрытия подсказки
@@ -188,7 +194,7 @@ TVD_monitorEnd = {
                         publicVariable "em_bonus";
                         em_extended = true;
                         publicVariable "em_extended";
-                    }, 1, 0, false, true, "", "em_actContinueAdded != -2"];
+                    }, nil, 0, false, true, "", "em_actContinueAdded != -2"];
                 };
             };
         };
@@ -198,7 +204,7 @@ TVD_monitorEnd = {
             em_actContinueAdded = -2;
             publicVariable "em_actContinueAdded";
         };
-    }, 1, [_startTime, _message, _specificSide]] call CBA_fnc_addPerFrameHandler;
+    }, 1, [_startTime, "_endCause", "_specificSide"]] call CBA_fnc_addPerFrameHandler;
     
     waitUntil {sleep 1; em_result}; // Ожидание завершения мониторинга
 };

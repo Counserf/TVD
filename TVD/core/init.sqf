@@ -26,27 +26,25 @@ if (isNil "_opforSide" || {!(_opforSide in [west, east, resistance, civilian])})
 TVD_Sides = [_blueforSide, _opforSide];
 
 // Определение союзников для каждой стороны
-TVD_BlueforAllies = [TVD_Sides select 0]; // Основная сторона bluefor и её союзники
+TVD_BueforAllies = [TVD_Sides select 0]; // Основная сторона bluefor и её союзники
 TVD_OpforAllies = [TVD_Sides select 1];    // Основная сторона opfor и её союзники
 
-// Проверка всех сторон на союз с bluefor или opfor
+// Проверка всех сторон на союз с bluefor или opfor (оптимизировано)
 {
-    if (_x != TVD_Sides select 0 && _x != TVD_Sides select 1) then { // Исключаем основные стороны
-        if (_x in ([TVD_Sides select 0] call BIS_fnc_friendlySides)) then {
-            TVD_BlueforAllies pushBack _x; // Добавляем союзника к bluefor
-        } else {
-            if (_x in ([TVD_Sides select 1] call BIS_fnc_friendlySides)) then {
-                TVD_OpforAllies pushBack _x; // Добавляем союзника к opfor
-            };
-        };
+    if (_x in ([TVD_Sides select 0] call BIS_fnc_friendlySides) && _x != TVD_Sides select 0) then {
+        TVD_BueforAllies pushBack _x; // Добавляем союзника к bluefor
+    };
+    if (_x in ([TVD_Sides select 1] call BIS_fnc_friendlySides) && _x != TVD_Sides select 1) then {
+        TVD_OpforAllies pushBack _x; // Добавляем союзника к opfor
     };
 } forEach [west, east, resistance];
 
 // Логирование для отладки
-diag_log format ["TVD Init: Bluefor Side = %1, Allies = %2", TVD_Sides select 0, TVD_BlueforAllies];
+diag_log format ["TVD Init: Bluefor Side = %1, Allies = %2", TVD_Sides select 0, TVD_BueforAllies];
 diag_log format ["TVD Init: Opfor Side = %1, Allies = %2", TVD_Sides select 1, TVD_OpforAllies];
 
 // Переопределение параметров миссии из аргументов (если вызвано с параметрами)
+if !(_this isEqualType []) then { _this = []; diag_log "TVD/init.sqf: Arguments invalid, using defaults"; };
 TVD_Sides = _this param [0, TVD_Sides];           // Основные стороны конфликта (blueforSide, opforSide)
 TVD_CapZonesCount = _this param [1, TVD_CapZonesCount]; // Количество зон захвата
 TVD_RetreatPossible = _this param [2, TVD_RetreatPossible]; // Разрешение отступления
@@ -128,7 +126,7 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
     // Синхронизация ключевых переменных на сервере
     if (isServer) then {
         publicVariable "TVD_Sides";           // Основные стороны (blueforSide, opforSide)
-        publicVariable "TVD_BlueforAllies";   // Союзники bluefor
+        publicVariable "TVD_BueforAllies";   // Союзники bluefor
         publicVariable "TVD_OpforAllies";     // Союзники opfor
         publicVariable "TVD_RetreatPossible"; // Разрешение отступления
         publicVariable "TVD_SideCanRetreat";  // Разрешение отступления для сторон
@@ -139,7 +137,7 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
     private _groupMap = createHashMap;
     {
         private _side = side _x;
-        if (_side in (TVD_BlueforAllies + TVD_OpforAllies)) then {
+        if (_side in (TVD_BueforAllies + TVD_OpforAllies)) then {
             private _group = group _x;
             private _groupStr = str _group splitString " ";
             private _prefix = switch (_groupStr select 1) do { // Префикс группы (A, B, C, D)
@@ -157,16 +155,16 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
 
     // Ожидание окончания заморозки миссии
     [CBA_fnc_waitUntilAndExecute, {(missionNamespace getVariable ["a3a_var_started", false])}, {
-        // Формирование списка групп с учётом союзников
-        private _allGroups = allGroups select {(count units _x > 0) && (side _x in (TVD_BlueforAllies + TVD_OpforAllies))};
+        // Формирование списка групп с учётом союзников (упрощённый цикл)
+        private _allGroups = allGroups select {(count units _x > 0) && (side _x in (TVD_BueforAllies + TVD_OpforAllies))};
         TVD_GroupList = _allGroups apply {[str _x, side _x, units _x]}; // Массив: [имя, сторона, юниты]
         {
-            private _groupData = TVD_GroupList select _forEachIndex;
+            private _groupData = _x;
             {   
                 _x setVariable ["TVD_Group", _groupData, true]; // Привязка юнита к группе
                 if (_x == leader _x) then {_x setVariable ["TVD_GroupLeader", true, true]}; // Отметка лидера
-            } forEach units _x;
-        } forEach _allGroups;
+            } forEach (_groupData select 2); // Используем units из _groupData
+        } forEach TVD_GroupList;
 
         // Логирование списка игровых юнитов
         if (isServer) then {
@@ -190,7 +188,7 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
         // Подсчёт начальных очков за зоны с учётом союзников
         {
             private _side = _x select 1;
-            private _index = if (_side in TVD_BlueforAllies) then {0} else {if (_side in TVD_OpforAllies) then {1} else {2}};
+            private _index = if (_side in TVD_BueforAllies) then {0} else {if (_side in TVD_OpforAllies) then {1} else {2}};
             TVD_InitScore set [_index, (TVD_InitScore select _index) + TVD_ZoneGain];
         } forEach TVD_capZones;
 
@@ -211,7 +209,7 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
         private _allUnits = allUnits + vehicles;
         {
             private _side = side _x;
-            if (_side in (TVD_BlueforAllies + TVD_OpforAllies) || _x in vehicles) then {
+            if (_side in (TVD_BueforAllies + TVD_OpforAllies) || _x in vehicles) then {
                 private _unitValue = _x getVariable ["TVD_UnitValue", []];
                 private _isValuable = _unitValue isNotEqualTo [];
                 
@@ -247,5 +245,10 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
         } forEach _allUnits;
         
         if (isServer) then {publicVariable "TVD_ValUnits"};
+
+        // Подключение клиентского интерфейса администратора
+        if (!isDedicated) then {
+            call compile preprocessFileLineNumbers "TVD\client\admin_menu.sqf"; // Загрузка интерфейса администратора
+        };
     }] call CBA_fnc_waitUntilAndExecute;
 }] call CBA_fnc_waitUntilAndExecute;

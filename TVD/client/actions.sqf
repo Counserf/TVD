@@ -6,7 +6,12 @@
  */
 TVD_addClientActions = {
     waitUntil {sleep 5; !isNull player && missionNamespace getVariable ["a3a_var_started", false]}; // Ожидание готовности игрока и миссии
-    if !(side group player in TVD_Sides) exitWith {}; // Выход, если сторона не участвует в TVD
+    if !(side group player in TVD_Sides) exitWith {diag_log "TVD/actions.sqf: Player side not in TVD_Sides";}; // Выход, если сторона не участвует в TVD
+    
+    if (isNil "TVD_BaseTriggers") then { diag_log "TVD/actions.sqf: TVD_BaseTriggers not defined"; };
+    private _sideIdx = TVD_Sides find side group player;
+    private _baseTrigger = TVD_BaseTriggers select _sideIdx;
+    private _commonCond = "_this == _target && !(_this getVariable ['ACE_isUnconscious', false]) && !(_this getVariable ['ace_captives_ishandcuffed', false])";
 
     // Действие: индивидуальное отступление солдата
     player addAction ["<t color='#ff4c4c'>" + localize "STR_TVD_RetreatIndividual" + "</t>", {
@@ -24,15 +29,15 @@ TVD_addClientActions = {
             } else {
                 [localize "STR_TVD_NoRearError", "title"] call TVD_notifyPlayers; // Уведомление об ошибке
             };
-        }, nil, 0, false, true, "", "_this == _target && !(_this getVariable ['ACE_isUnconscious', false]) && !(_this getVariable ['ace_captives_ishandcuffed', false])"];
+        }, nil, 0, false, true, "", _commonCond];
         
         // Действие отмены отступления
         srActIDCancel = _caller addAction ["<t color='#8BC8D6'>" + localize "STR_TVD_RetreatCancel" + "</t>", {
             params ["_target", "_caller"];
             missionNamespace setVariable ["srAct", 1]; // Возврат в начальное состояние
             {_caller removeAction _x} forEach [srActIDapprove, srActIDCancel]; // Удаление действий
-        }, nil, 0, false, true, "", "_this == _target && !(_this getVariable ['ACE_isUnconscious', false]) && !(_this getVariable ['ace_captives_ishandcuffed', false])"];
-    }, nil, 0, false, true, "", format ["_this == _target && !(_this getVariable ['ACE_isUnconscious', false]) && !(_this getVariable ['ace_captives_ishandcuffed', false]) && (missionNamespace getVariable ['srAct', 1]) == 1 && {_this in list %1 && TVD_SideCanRetreat param [%2, false]}", TVD_BaseTriggers select (TVD_Sides find side group player), TVD_Sides find side group player]];
+        }, nil, 0, false, true, "", _commonCond];
+    }, nil, 0, false, true, "", format ["%1 && (missionNamespace getVariable ['srAct', 1]) == 1 && {_this in list %2 && TVD_SideCanRetreat param [%3, false]}", _commonCond, _baseTrigger, _sideIdx]];
     
     // Действие: отправка пехотинца в резерв
     player addAction ["<t color='#ffffff'>" + localize "STR_TVD_SendToReserve" + "</t>", {
@@ -43,7 +48,7 @@ TVD_addClientActions = {
         } else {
             [localize "STR_TVD_CannotSendCaptive", "title"] call TVD_notifyPlayers; // Уведомление об ошибке
         };
-    }, nil, 0, false, true, "", format ["_this != _target && (_target distance _this <= 3) && {isClass (configFile >> 'CfgPatches' >> 'ace_main') && {_target getVariable ['ace_captives_ishandcuffed', false]}} && {_this in list %1}", TVD_BaseTriggers select (TVD_Sides find side group player)]];
+    }, nil, 0, false, true, "", format ["_this != _target && (_target distance _this <= 3) && {isClass (configFile >> 'CfgPatches' >> 'ace_main') && {_target getVariable ['ace_captives_ishandcuffed', false]}} && {_this in list %1}", _baseTrigger]];
     
     // Действие: отправка техники в резерв
     player addAction ["<t color='#ffffff'>" + localize "STR_TVD_SendVehicleToReserve" + "</t>", {
@@ -54,7 +59,7 @@ TVD_addClientActions = {
         } else {
             [localize "STR_TVD_CannotSendVehicle", "title"] call TVD_notifyPlayers; // Уведомление об ошибке
         };
-    }, nil, 0, false, true, "", format ["_this != _target && (_target distance _this <= 5) && (_target isKindOf 'Vehicle') && {_this in list %1}", TVD_BaseTriggers select (TVD_Sides find side group player)]];
+    }, nil, 0, false, true, "", format ["_this != _target && (_target distance _this <= 5) && (_target isKindOf 'Vehicle') && {_this in list %1}", _baseTrigger]];
     
     // Действие: команда на отступление для командиров
     if (player getVariable ["TVD_UnitValue", []] param [2, ""] in ["sideLeader", "execSideLeader"]) then {
@@ -68,7 +73,7 @@ TVD_addClientActions = {
                     actIndex pushBack (_caller addAction ["<t color='#ffffff'>" + localize "STR_TVD_RetreatConfirm" + "</t>", { // Подтверждение отступления
                         missionNamespace setVariable ["retrAction", 0];
                         {player removeAction _x} forEach actIndex;
-                        actIndex = []; // Очистка списка действий
+                        actIndex = [];
                         TVD_SideRetreat = side player;
                         publicVariableServer "TVD_SideRetreat"; // Уведомление сервера об отступлении
                     }, nil, 0, false, true, "", "timeToEnd == -1"]);
@@ -76,7 +81,7 @@ TVD_addClientActions = {
                     actIndex pushBack (_caller addAction ["<t color='#8BC8D6'>" + localize "STR_TVD_RetreatCancel" + "</t>", { // Отмена отступления
                         missionNamespace setVariable ["retrAction", 1];
                         {player removeAction _x} forEach actIndex;
-                        actIndex = []; // Очистка списка действий
+                        actIndex = [];
                     }, nil, 0, false, true, "", ""]);
                 };
             };

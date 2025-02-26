@@ -10,6 +10,9 @@
  */
 TVD_notifyPlayers = {
     params ["_targets", "_message", "_type" = "title"];
+    if (isNil "_targets") then {_targets = 0}; // По умолчанию для всех игроков
+    if (isArray _targets && {_targets isEqualTo []}) then { _targets = 0; }; // Если массив пуст, отправляем всем
+    
     private _formatted = switch (_type) do {
         case "title": {format ["<t align='center'>%1</t>", _message]}; // Обычный заголовок
         case "dynamic": {[_message, 0, 0.7, 6, 0.2]}; // Динамический текст

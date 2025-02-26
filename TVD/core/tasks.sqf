@@ -11,17 +11,19 @@ TVD_updateTasks = {
     params ["_endIt" = false];
     private ["_tasksCount", "_task", "_side", "_us", "_message", "_showMessageTo", "_amount"];
     
+    if (isNil "TVD_TaskObjectsList") then { TVD_TaskObjectsList = [0, 0]; diag_log "TVD/tasks.sqf: TVD_TaskObjectsList was nil, initialized"; };
     _tasksCount = count TVD_TaskObjectsList; // Количество задач в списке
     if (_tasksCount <= 2) exitWith {2}; // Возвращаем 2, если остались только счётчики сторон
     
     // Проверка всех задач, начиная с индекса 2 (0 и 1 - счётчики сторон)
-    for "_i" from 2 to (_tasksCount - 1) do {
-        _task = TVD_TaskObjectsList select _i;
+    private _activeTasks = TVD_TaskObjectsList select [2, _tasksCount - 2];
+    {
+        _task = _x;
         // Пропускаем задачу, если она завершена или объект удалён
         if (isNull _task || isNil {_task getVariable "TVD_TaskObject"} || (_task getVariable "TVD_TaskObjectStatus") in ["fail", "success"]) then {
             _task setVariable ["TVD_TaskObject", nil, true]; // Очистка данных задачи
             _task setVariable ["TVD_TaskObjectStatus", "fail", true]; // Установка статуса "провал"
-            TVD_TaskObjectsList deleteAt _i; // Удаление задачи из списка
+            TVD_TaskObjectsList deleteAt (TVD_TaskObjectsList find _task); // Удаление задачи из списка
             continue;
         };
         
@@ -48,28 +50,28 @@ TVD_updateTasks = {
                 } else if (_endIt) then {
                     _task setVariable ["TVD_TaskObjectStatus", "fail", true]; // Установка статуса "провал"
                     _task setVariable ["TVD_TaskObject", nil, true];
-                    TVD_TaskObjectsList deleteAt _i; // Удаление задачи
+                    TVD_TaskObjectsList deleteAt (TVD_TaskObjectsList find _task); // Удаление задачи
                 };
             };
             case (_task isKindOf "Logic"): { // Задача-логический объект
                 if (_endIt && timeToEnd >= 0) then {
                     private _cond = _conditions param [timeToEnd, "false"]; // Условие для текущей причины завершения
                     if (call compile _cond && _side != TVD_SideRetreat) then {
-                        _task setVariable ["WMT_TaskEnd", true, true]; // Принудительное завершение
+                        _task setVariable ["TVD_TaskCompleted", true, true]; // Принудительное завершение
                     };
                 };
-                if (_task getVariable ["WMT_TaskEnd", false]) then {
+                if (_task getVariable ["TVD_TaskCompleted", false]) then {
                     [_task, _side, _us, _message, _showMessageTo, _isKeyTask] call TVD_completeTask; // Завершение задачи
                 } else if (_endIt) then {
                     _task setVariable ["TVD_TaskObjectStatus", "fail", true]; // Установка статуса "провал"
                     _task setVariable ["TVD_TaskObject", nil, true];
-                    TVD_TaskObjectsList deleteAt _i; // Удаление задачи
+                    TVD_TaskObjectsList deleteAt (TVD_TaskObjectsList find _task); // Удаление задачи
                 };
             };
         };
-        _tasksCount = count TVD_TaskObjectsList; // Обновление счётчика после возможного удаления
-    };
-    _tasksCount // Возвращаем текущее число задач
+    } forEach _activeTasks;
+    
+    count TVD_TaskObjectsList // Возвращаем текущее число задач
 };
 
 /*
@@ -85,7 +87,7 @@ TVD_updateTasks = {
 TVD_completeTask = {
     params ["_task", "_side", "_us", "_message", "_showMessageTo", "_isKeyTask"];
     
-    if (isNull _task || _us == -1) exitWith {}; // Проверка на валидность задачи и стороны
+    if (isNull _task || _us == -1) exitWith {diag_log "TVD/tasks.sqf: Invalid task or side index";}; // Проверка на валидность задачи и стороны
     
     // Обновление счётчиков задач и очков
     TVD_TaskObjectsList set [_us, (TVD_TaskObjectsList select _us) + 1]; // Увеличение счётчика задач стороны

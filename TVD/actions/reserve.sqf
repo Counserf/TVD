@@ -56,9 +56,10 @@ TVD_sendToReserve = {
                     private _originalUs = TVD_Sides find (_target getVariable "TVD_UnitValue" select 0); // Индекс изначальной стороны
                     private _amount = if (_us != _originalUs) then {(_target getVariable ["TVD_UnitValue", [nil, 0]] select 1) / 2} else {_target getVariable ["TVD_UnitValue", [nil, 0]] select 1}; // Очки за технику (50% при захвате)
                     
+                    if (isNil "TVD_SidesResScore") then { TVD_SidesResScore = [0, 0]; diag_log "TVD/reserve.sqf: TVD_SidesResScore initialized"; }; // Инициализация, если не определено
                     TVD_SidesResScore set [_us, (TVD_SidesResScore select _us) + _amount]; // Добавление очков в резерв
                     private _unitValue = _target getVariable ["TVD_UnitValue", []];
-                    if (_unitValue isNotEqualTo []) then {_target setVariable ["TVD_UnitValue", nil, true]}; // Очистка данных
+                    if (!(_unitValue isEqualTo [])) then {_target setVariable ["TVD_UnitValue", nil, true]}; // Очистка данных (оптимизировано с !isEmpty)
                     private _index = TVD_ValUnits find _target;
                     if (_index != -1) then {TVD_ValUnits deleteAt _index}; // Удаление из списка ценных юнитов
                     ["TVD_ReserveUpdate", [_us, _amount]] call CBA_fnc_globalEvent; // Синхронизация через CBA-ивент
@@ -78,7 +79,8 @@ TVD_sendToReserve = {
     // Обработка пехотинца на сервере
     if (isServer && _isMan) then {
         private _unitValue = _target getVariable ["TVD_UnitValue", []];
-        private _amount = if (_unitValue isNotEqualTo []) then {_unitValue select 1} else {TVD_SoldierCost}; // Ценность юнита
+        private _amount = if (!(_unitValue isEqualTo [])) then {_unitValue select 1} else {TVD_SoldierCost}; // Ценность юнита (оптимизировано с !isEmpty)
+        if (isNil "TVD_SidesResScore") then { TVD_SidesResScore = [0, 0]; diag_log "TVD/reserve.sqf: TVD_SidesResScore initialized"; }; // Инициализация, если не определено
         TVD_SidesResScore set [_us, (TVD_SidesResScore select _us) + _amount]; // Добавление очков в резерв
         ["TVD_ReserveUpdate", [_us, _amount]] call CBA_fnc_globalEvent; // Синхронизация через CBA-ивент
         
@@ -95,6 +97,7 @@ if (isServer && isNil "TVD_ReserveUpdateEH") then {
     TVD_ReserveUpdateEH = ["TVD_ReserveUpdate", { // Обработчик события обновления резерва
         params ["_us", "_amount"];
         if (_us >= 0 && _us < count TVD_SidesResScore) then { // Проверка корректности индекса
+            if (isNil "TVD_SidesResScore") then { TVD_SidesResScore = [0, 0]; diag_log "TVD/reserve.sqf: TVD_SidesResScore initialized in EH"; }; // Инициализация
             TVD_SidesResScore set [_us, (TVD_SidesResScore select _us) + _amount]; // Обновление очков резерва на всех клиентах
         };
     }] call CBA_fnc_addEventHandler;

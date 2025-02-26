@@ -14,10 +14,11 @@ TVD_monitorHeavyLosses = {
     waitUntil {sleep 2; missionNamespace getVariable ["a3a_var_started", false]}; // Ожидание окончания заморозки
 
     // Инициализация начального числа игроков с учётом союзников
+    if (isNil "TVD_BlueforPlayers" || isNil "TVD_OpforPlayers") then { diag_log "TVD/heavy_losses.sqf: Player lists not initialized"; };
     TVD_PlayerCountInit = [
-        {(side _x in TVD_BlueforAllies) && isPlayer _x} count allPlayers, // Bluefor + союзники
-        {(side _x in TVD_OpforAllies) && isPlayer _x} count allPlayers,   // Opfor + союзники
-        0 // Резерв для совместимости, не используется
+        count TVD_BlueforPlayers, // Используем кэшированный список
+        count TVD_OpforPlayers,   // Используем кэшированный список
+        0 // Резерв для совместимости
     ];
 
     // Асинхронный мониторинг потерь
@@ -27,8 +28,8 @@ TVD_monitorHeavyLosses = {
         
         // Текущее число игроков с учётом союзников
         TVD_PlayerCountNow = [
-            {(side _x in TVD_BlueforAllies) && isPlayer _x} count allPlayers,
-            {(side _x in TVD_OpforAllies) && isPlayer _x} count allPlayers,
+            count (TVD_BlueforPlayers select {alive _x}),
+            count (TVD_OpforPlayers select {alive _x}),
             0
         ];
 

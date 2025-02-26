@@ -5,20 +5,30 @@
 if (isServer && isNil "TVD_LogQueue") then {
     TVD_LogQueue = [];
     
-    // Асинхронный обработчик логов с интервалом 0.5 секунды
+    // Асинхронный обработчик логов с интервалом 0.5 секунды и лимитом обработки
     [CBA_fnc_addPerFrameHandler, {
         params ["_args", "_handle"];
         private _queue = _args select 0;
         
         if (_queue isEqualTo []) exitWith {}; // Пропуск, если очередь пуста
         
-        private _entry = _queue deleteAt 0; // Извлечение первого события из очереди
-        _entry params ["_type", "_data", "_extra"];
+        private _maxPerFrame = 10; // Увеличенный лимит обработки до 10 событий за кадр
+        for "_i" from 0 to (_maxPerFrame - 1) do {
+            if (_queue isEqualTo []) exitWith {}; // Выход, если очередь опустела
+            private _entry = _queue deleteAt 0; // Извлечение первого события из очереди
+            _entry params ["_type", "_data", "_extra"];
+            
+            [_type, _data, _extra] call TVD_logEvent; // Вызов логирования события
+        };
         
-        [_type, _data, "_extra"] call TVD_logEvent; // Вызов логирования события
+        // Мониторинг размера очереди для предотвращения задержек
+        private _queueSize = count _queue;
+        if (_queueSize > 50) then {
+            diag_log format ["TVD/logging.sqf: WARNING - Log queue size is %1, potential delay in processing", _queueSize]; // Предупреждение при большом размере очереди
+        };
         
-        if (_queue isEqualTo []) then {[_handle] call CBA_fnc_removePerFrameHandler}; // Удаление обработчика, если очередь пуста
-    }, 0.5, [TVD_LogQueue]] call CBA_fnc_addPerFrameHandler;
+        if (_queueSize == 0) then {[_handle] call CBA_fnc_removePerFrameHandler}; // Удаление обработчика, если очередь пуста
+    }, 0.5, [TVD_LogQueue]] call CBA_fnc_addPerFrameHandler; // Интервал 0.5 секунды
 };
 
 /*
@@ -103,10 +113,12 @@ TVD_logEvent = {
     };
     
     private _stats = [] call TVD_calculateWin; // Текущие результаты миссии
-    private _si0 = TVD_Sides find west;
-    private _si1 = TVD_Sides find east;
-    private _sidesRatio = parseText format ["<t size='0.7' shadow='2'>(<t color='%1'>%2%</t>-<t color='%3'>%4%</t>) </t>", _sColor select _si0, _stats select 2, _sColor select _si1, _stats select 3];
-    TVD_MissionLog pushBack composeText [_timeStamp, _sidesRatio, _plot]; // Добавление события в лог
+    if (!isNil "_stats") then { // Проверка на существование _stats
+        private _si0 = TVD_Sides find west;
+        private _si1 = TVD_Sides find east;
+        private _sidesRatio = parseText format ["<t size='0.7' shadow='2'>(<t color='%1'>%2%</t>-<t color='%3'>%4%</t>) </t>", _sColor select _si0, _stats select 2, _sColor select _si1, _stats select 3];
+        TVD_MissionLog pushBack composeText [_timeStamp, _sidesRatio, _plot]; // Добавление события в лог
+    };
 };
 
 /*
