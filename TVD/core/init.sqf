@@ -238,12 +238,22 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
                             _vehicleSide = side (_crew select 0); // Если есть экипаж, используем его сторону
                         };
                         if (_vehicleSide in TVD_BueforAllies || _vehicleSide in TVD_OpforAllies) then {
-                            private _value = switch (true) do { // Оценка ценности техники по умолчанию
-                                case (_x isKindOf "Tank"): {100}; // Танки - 100 очков
-                                case (_x isKindOf "Car"): {50};   // Машины - 50 очков
-                                default {25};                     // Прочая техника - 25 очков
+                            private _isArmed = count (weapons _x) > 0; // Проверка наличия вооружения
+                            private _value = switch (true) do { // Оценка ценности техники по типу и вооружению
+                                case (_x isKindOf "Airplane" && _isArmed): {150}; // Вооружённые самолёты - 150 очков
+                                case (_x isKindOf "Airplane"): {75};              // Невооружённые самолёты - 75 очков
+                                case (_x isKindOf "Tank" && _isArmed): {100};     // Вооружённая гусеничная техника - 100 очков
+                                case (_x isKindOf "Tank"): {40};                  // Невооружённая гусеничная техника - 40 очков
+                                case (_x isKindOf "Helicopter" && _isArmed): {100}; // Вооружённые вертолёты - 100 очков
+                                case (_x isKindOf "Helicopter"): {50};            // Невооружённые вертолёты - 50 очков
+                                case (_x isKindOf "Car" && _isArmed): {60};       // Вооружённая колёсная техника - 60 очков
+                                case (_x isKindOf "Car"): {30};                   // Невооружённая колёсная техника - 30 очков
+                                case (_x isKindOf "Ship" && _isArmed): {50};      // Вооружённые лодки - 50 очков
+                                case (_x isKindOf "Ship"): {20};                  // Невооружённые лодки - 20 очков
+                                case (_x isKindOf "StaticWeapon"): {30};          // Статичное оружие - 30 очков
+                                default {25};                                     // Прочая техника - 25 очков
                             };
-                            _unitSide = if (_vehicleSide in TVD_BueforAllies) then {0} else {1};
+                            _unitSide = if (_vehicleSide in TVD_BueforAllies) then {0} else {1}; // Индекс стороны (0 - bluefor, 1 - opfor)
                             _x setVariable ["TVD_UnitValue", [_vehicleSide, _value, "vehicle"], true]; // Автоматическое задание ценности
                             TVD_InitScore set [_unitSide, (TVD_InitScore select _unitSide) + _value]; // Добавление начальных очков
                             TVD_ValUnits pushBack _x; // Добавление в список ценных юнитов
