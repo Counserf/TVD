@@ -11,7 +11,11 @@ TVD_updateTasks = {
     params ["_endIt" = false];
     private ["_tasksCount", "_task", "_side", "_us", "_message", "_showMessageTo", "_amount"];
     
-    if (isNil "TVD_TaskObjectsList") then { TVD_TaskObjectsList = [0, 0]; diag_log "TVD/tasks.sqf: TVD_TaskObjectsList was nil, initialized"; };
+    // Проверка инициализации списка задач
+    if (isNil "TVD_TaskObjectsList") then { 
+        TVD_TaskObjectsList = [0, 0]; 
+        diag_log "TVD/tasks.sqf: TVD_TaskObjectsList was nil, initialized"; 
+    };
     _tasksCount = count TVD_TaskObjectsList; // Количество задач в списке
     if (_tasksCount <= 2) exitWith {2}; // Возвращаем 2, если остались только счётчики сторон
     
@@ -27,9 +31,9 @@ TVD_updateTasks = {
             continue;
         };
         
-        // Извлечение данных задачи
+        // Извлечение данных задачи из переменных объекта
         _side = _task getVariable "TVD_TaskObject" select 0; // Сторона задачи
-        _us = TVD_Sides find _side; // Индекс стороны
+        _us = TVD_Sides find _side; // Индекс стороны в TVD_Sides
         _message = _task getVariable "TVD_TaskObject" select 2; // Сообщение о задаче
         _showMessageTo = _task getVariable "TVD_TaskObject" select 3; // Флаг показа уведомления
         private _conditions = _task getVariable "TVD_TaskObject" select 4; // Условия выполнения
@@ -42,14 +46,14 @@ TVD_updateTasks = {
                     private _cond = _conditions param [timeToEnd, "false"]; // Условие для текущей причины завершения
                     if (call compile _cond && _side != TVD_SideRetreat) then {
                         _task setTriggerStatements ["true", "", ""]; // Принудительная активация триггера
-                        waitUntil {triggerActivated _task}; // Ожидание активации
+                        waitUntil {triggerActivated _task}; // Ожидание активации триггера
                     };
                 };
                 if (triggerActivated _task) then {
                     [_task, _side, _us, _message, _showMessageTo, _isKeyTask] call TVD_completeTask; // Завершение задачи
                 } else if (_endIt) then {
                     _task setVariable ["TVD_TaskObjectStatus", "fail", true]; // Установка статуса "провал"
-                    _task setVariable ["TVD_TaskObject", nil, true];
+                    _task setVariable ["TVD_TaskObject", nil, true]; // Очистка данных задачи
                     TVD_TaskObjectsList deleteAt (TVD_TaskObjectsList find _task); // Удаление задачи
                 };
             };
@@ -64,14 +68,14 @@ TVD_updateTasks = {
                     [_task, _side, _us, _message, _showMessageTo, _isKeyTask] call TVD_completeTask; // Завершение задачи
                 } else if (_endIt) then {
                     _task setVariable ["TVD_TaskObjectStatus", "fail", true]; // Установка статуса "провал"
-                    _task setVariable ["TVD_TaskObject", nil, true];
+                    _task setVariable ["TVD_TaskObject", nil, true]; // Очистка данных задачи
                     TVD_TaskObjectsList deleteAt (TVD_TaskObjectsList find _task); // Удаление задачи
                 };
             };
         };
     } forEach _activeTasks;
     
-    count TVD_TaskObjectsList // Возвращаем текущее число задач
+    count TVD_TaskObjectsList // Возвращаем текущее число задач в списке
 };
 
 /*
@@ -87,15 +91,16 @@ TVD_updateTasks = {
 TVD_completeTask = {
     params ["_task", "_side", "_us", "_message", "_showMessageTo", "_isKeyTask"];
     
-    if (isNull _task || _us == -1) exitWith {diag_log "TVD/tasks.sqf: Invalid task or side index";}; // Проверка на валидность задачи и стороны
+    // Проверка на валидность задачи и индекса стороны
+    if (isNull _task || _us == -1) exitWith {diag_log "TVD/tasks.sqf: Invalid task or side index";};
     
     // Обновление счётчиков задач и очков
     TVD_TaskObjectsList set [_us, (TVD_TaskObjectsList select _us) + 1]; // Увеличение счётчика задач стороны
     private _amount = _task getVariable ["TVD_TaskObject", [0, 0]] select 1; // Очки за задачу
-    TVD_InitScore set [1 - _us, (TVD_InitScore select (1 - _us)) + _amount]; // Добавление очков противоположной стороне
+    TVD_InitScore set [_us, (TVD_InitScore select _us) + _amount]; // Исправлено: очки добавляются стороне, выполнившей задачу
     
-    // Проверка ключевой задачи
-    if (_isKeyTask) then {TVD_MissionComplete = _side}; // Установка флага завершения миссии
+    // Проверка ключевой задачи для завершения миссии
+    if (_isKeyTask) then {TVD_MissionComplete = _side};
     _task setVariable ["TVD_TaskObjectStatus", "success", true]; // Установка статуса "успех"
     _task setVariable ["TVD_TaskObject", nil, true]; // Очистка данных задачи
     TVD_TaskObjectsList deleteAt (TVD_TaskObjectsList find _task); // Удаление задачи из списка

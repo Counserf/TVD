@@ -5,19 +5,22 @@
  * Выполняет отступление всей стороны, уничтожая юнитов вне базы и передавая технику врагу
  * Параметры:
  *   _side: сторона - сторона, которая отступает
+ * Возвращает: текст - обновлённый лог потерь при отступлении
  */
 TVD_retreatSide = {
     params ["_side"];
     private _trigger = TVD_BaseTriggers select (TVD_Sides find _side); // Триггер базы отступающей стороны
-    if (isNull _trigger) exitWith {diag_log "TVD_retreatSide: Trigger is null";}; // Выход, если триггер отсутствует
-    _trigger setTriggerActivation ["ANY", "PRESENT", true]; // Активация триггера для всех
+    if (isNull _trigger) exitWith {diag_log "TVD_retreatSide: Trigger is null"; parseText ""}; // Выход с пустым логом, если триггер отсутствует
+    _trigger setTriggerActivation ["ANY", "PRESENT", true]; // Активация триггера для всех объектов
     
     private _retLossLog = parseText ""; // Лог потерь при отступлении
     private _enemySide = TVD_Sides select (1 - (TVD_Sides find _side)); // Противоположная сторона
     
     // Уничтожение юнитов вне зоны базы
     private _retreatUnits = allPlayers select {side group _x == _side && !(_x in list _trigger)};
-    {[_x, _retLossLog] call TVD_retreatSoldier} forEach _retreatUnits; // Индивидуальное отступление для каждого
+    {
+        [_x, _retLossLog] call TVD_retreatSoldier; // Индивидуальное отступление с обновлением лога
+    } forEach _retreatUnits;
     
     // Передача техники врагу
     private _lostVehicles = TVD_ValUnits select {!(_x in list _trigger) && (_x getVariable "TVD_UnitValue" select 0) == _side};
@@ -26,10 +29,11 @@ TVD_retreatSide = {
         _retLossLog = composeText [_retLossLog, parseText format ["%1, ", getText (configFile >> "CfgVehicles" >> typeOf _x >> "displayName")]]; // Добавление в лог
     } forEach _lostVehicles;
     
-    // Передача всех зон врагу
-    {if (!(_x select 2)) then {(_x select 0) setMarkerColor (_enemySide call TVD_sideToColor)}} forEach TVD_capZones; // Обновление цвета зон
+    // Передача всех зон врагу (кроме заблокированных)
+    {if (!(_x select 2)) then {(_x select 0) setMarkerColor (_enemySide call TVD_sideToColor)}} forEach TVD_capZones;
     
     ["retreatLossList", _retLossLog, TVD_Sides find _side] call TVD_logEvent; // Логирование потерь
+    _retLossLog // Возвращаем обновлённый лог
 };
 
 /*
@@ -37,15 +41,16 @@ TVD_retreatSide = {
  * Параметры:
  *   _unit: объект - юнит, который отступает
  *   _log: текст (опционально) - лог для добавления имени юнита (используется в retreatSide)
+ * Возвращает: текст - обновлённый лог, если передан
  */
 TVD_retreatSoldier = {
     params ["_unit", ["_log", nil]];
-    if (isNull _unit) exitWith {diag_log "TVD/retreat.sqf: Unit is null";}; // Выход, если юнит отсутствует
+    if (isNull _unit) exitWith {diag_log "TVD/retreat.sqf: Unit is null"; if (!isNil "_log") then {_log} else {nil}}; // Выход с логом, если юнит отсутствует
     private _us = TVD_Sides find side group _unit; // Индекс стороны юнита
-    if (_us == -1) exitWith {diag_log "TVD/retreat.sqf: Unit side not in TVD_Sides";}; // Пропуск, если сторона не найдена
-    private _unitName = name _unit; // Имя юнита
+    if (_us == -1) exitWith {diag_log "TVD/retreat.sqf: Unit side not in TVD_Sides"; if (!isNil "_log") then {_log} else {nil}}; // Пропуск, если сторона не найдена
+    private _unitName = name _unit; // Имя юнита для уведомлений и лога
     
-    // Уведомление ближайших игроков
+    // Уведомление ближайших игроков в радиусе 50 метров
     private _notifyUnits = (ASLToAGL getPosASL _unit nearEntities ["CAManBase", 50]) select {isPlayer _x};
     [_notifyUnits, format ["%1 отступил в тыл.", _unitName], "title"] call TVD_notifyPlayers;
     
@@ -53,7 +58,7 @@ TVD_retreatSoldier = {
     if (isPlayer _unit) then {[_unit, "Вы отступили в тыл.", "dynamic"] call TVD_notifyPlayers};
     
     private _unitValue = _unit getVariable ["TVD_UnitValue", []]; // Данные юнита
-    private _amount = if (_unitValue isNotEqualTo []) then {_unitValue select 1} else {TVD_SoldierCost}; // Ценность юнита
+    private _amount = if (_unitValue isNotEqualTo []) then {_unitValue select 1} else {TVD_SoldierCost}; // Ценность юнита: из TVD_UnitValue или по умолчанию
     _unit setVariable ["TVD_soldierRetreats", true, true]; // Установка флага отступления
     
     // Обновление очков и удаление юнита (только на сервере)
@@ -67,7 +72,11 @@ TVD_retreatSoldier = {
         
         // Формирование данных для лога
         private _passData = [_unitName, side group _unit, if (count _unitValue > 2) then {(_unitValue select 2) call TVD_unitRole} else {""}, _unit getVariable ["TVD_GroupID", ""]];
-        if (!isNil "_log" && {_log isEqualType (parseText "")}) then {_log = composeText [_log, parseText format ["%1, ", _unitName]]}; // Добавление в общий лог, если указан и правильного типа
+        if (!isNil "_log" && {_log isEqualType (parseText "")}) then {
+            _log = composeText [_log, parseText format ["%1, ", _unitName]]; // Обновление переданного лога
+        };
         ["retreatSoldier", _passData] call TVD_logEvent; // Логирование события
     };
+    
+    if (!isNil "_log") then {_log}; // Возвращаем обновлённый лог, если он передан
 };
