@@ -203,6 +203,68 @@
                 <English>Controlled Zones:</English>
                 <Russian>Контролируемые зоны:</Russian>
             </Key>
+
+            <!-- Новые строки из init.sqf -->
+            <Key ID="STR_TVD_Init_InvalidBlueforSide">
+                <English>TVD Warning: Invalid blueforSide '%1'. Defaulting to WEST.</English>
+                <Russian>TVD Предупреждение: Неверная сторона bluefor '%1'. Установлено WEST по умолчанию.</Russian>
+            </Key>
+            <Key ID="STR_TVD_Init_InvalidOpforSide">
+                <English>TVD Warning: Invalid opforSide '%1'. Defaulting to EAST.</English>
+                <Russian>TVD Предупреждение: Неверная сторона opfor '%1'. Установлено EAST по умолчанию.</Russian>
+            </Key>
+            <Key ID="STR_TVD_Init_BlueforSide">
+                <English>TVD Init: Bluefor Side = %1, Allies = %2</English>
+                <Russian>TVD Инициализация: Сторона Bluefor = %1, Союзники = %2</Russian>
+            </Key>
+            <Key ID="STR_TVD_Init_OpforSide">
+                <English>TVD Init: Opfor Side = %1, Allies = %2</English>
+                <Russian>TVD Инициализация: Сторона Opfor = %1, Союзники = %2</Russian>
+            </Key>
+            <Key ID="STR_TVD_Init_InvalidArguments">
+                <English>TVD/init.sqf: Arguments invalid, using defaults</English>
+                <Russian>TVD/init.sqf: Неверные аргументы, используются значения по умолчанию</Russian>
+            </Key>
+            <Key ID="STR_TVD_Init_PlayableUnits">
+                <English>TVD_PlayableUnits: %1</English>
+                <Russian>TVD_Игровые юниты: %1</Russian>
+            </Key>
+
+            <!-- Новые строки из score.sqf -->
+            <Key ID="STR_TVD_Score_InfScoreNil">
+                <English>TVD/score.sqf: TVD_SidesInfScore was nil, initialized</English>
+                <Russian>TVD/score.sqf: TVD_SidesInfScore не инициализирован, выполнен сброс</Russian>
+            </Key>
+            <Key ID="STR_TVD_Score_PlayerListsNotCached">
+                <English>TVD/score.sqf: Player lists not cached</English>
+                <Russian>TVD/score.sqf: Списки игроков не кэшированы</Russian>
+            </Key>
+
+            <!-- Новые строки из logging.sqf -->
+            <Key ID="STR_TVD_Log_QueueWarning">
+                <English>TVD/logging.sqf: WARNING - Log queue size is %1, potential delay in processing</English>
+                <Russian>TVD/logging.sqf: ВНИМАНИЕ - Размер очереди логов %1, возможна задержка обработки</Russian>
+            </Key>
+            <Key ID="STR_TVD_Log_MissionStatusReport">
+                <English>TVD Mission Status Report:</English>
+                <Russian>Отчёт о состоянии миссии TVD:</Russian>
+            </Key>
+            <Key ID="STR_TVD_Log_ExportLogHeader">
+                <English>TVD_ExportLog:</English>
+                <Russian>TVD_ЭкспортЛога:</Russian>
+            </Key>
+            <Key ID="STR_TVD_Debrief_VehiclesAndContainers">
+                <English>Vehicles and Containers:</English>
+                <Russian>Техника и контейнеры:</Russian>
+            </Key>
+            <Key ID="STR_TVD_Debrief_BlueforVehicles">
+                <English>Bluefor Vehicles: %1</English>
+                <Russian>Техника Bluefor: %1</Russian>
+            </Key>
+            <Key ID="STR_TVD_Debrief_OpforVehicles">
+                <English>Opfor Vehicles: %1</English>
+                <Russian>Техника Opfor: %1</Russian>
+            </Key>
         </Container>
     </Package>
 </Project>

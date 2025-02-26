@@ -3,7 +3,7 @@
 
 // Инициализация очереди логов для асинхронной обработки (только на сервере)
 if (isServer && isNil "TVD_LogQueue") then {
-    TVD_LogQueue = [];
+    TVD_LogQueue = []; // Очередь для событий логов
     
     // Асинхронный обработчик логов с интервалом 0.5 секунды и лимитом обработки
     [CBA_fnc_addPerFrameHandler, {
@@ -18,13 +18,13 @@ if (isServer && isNil "TVD_LogQueue") then {
             private _entry = _queue deleteAt 0; // Извлечение первого события из очереди
             _entry params ["_type", "_data", "_extra"];
             
-            [_type, _data, _extra] call TVD_logEvent; // Вызов логирования события
+            [_type, _data, "_extra"] call TVD_logEvent; // Вызов логирования события
         };
         
         // Мониторинг размера очереди для предотвращения задержек
         private _queueSize = count _queue;
         if (_queueSize > 50) then {
-            diag_log format ["TVD/logging.sqf: WARNING - Log queue size is %1, potential delay in processing", _queueSize]; // Предупреждение при большом размере очереди
+            diag_log format [localize "STR_TVD_Log_QueueWarning", _queueSize]; // Предупреждение при большом размере очереди
         };
         
         if (_queueSize == 0) then {[_handle] call CBA_fnc_removePerFrameHandler}; // Удаление обработчика, если очередь пуста
@@ -51,12 +51,12 @@ TVD_logEvent = {
             private _si1 = TVD_Sides find east;
             _plot = composeText [
                 parseText format ["<t size='0.7' shadow='2'>" + localize "STR_TVD_LogScheduled" + "</t>",
-                    TVD_PlayerCountNow select _si0, TVD_PlayerCountNow select _si1,
-                    (TVD_PlayerCountInit select _si0) - (TVD_PlayerCountNow select _si0),
-                    (TVD_PlayerCountInit select _si1) - (TVD_PlayerCountNow select _si1),
-                    {_x select 1 == TVD_Sides select 0} count TVD_capZones,
-                    {_x select 1 == TVD_Sides select 1} count TVD_capZones,
-                    TVD_TaskObjectsList select 0, TVD_TaskObjectsList select 1]
+                    TVD_PlayerCountNow select _si0, TVD_PlayerCountNow select _si1, // Живые игроки
+                    (TVD_PlayerCountInit select _si0) - (TVD_PlayerCountNow select _si0), // Потери bluefor
+                    (TVD_PlayerCountInit select _si1) - (TVD_PlayerCountNow select _si1), // Потери opfor
+                    {_x select 1 == TVD_Sides select 0} count TVD_capZones, // Зоны bluefor
+                    {_x select 1 == TVD_Sides select 1} count TVD_capZones, // Зоны opfor
+                    TVD_TaskObjectsList select 0, TVD_TaskObjectsList select 1] // Выполненные задачи
             ];
         };
         case "taskCompleted": { // Завершение задачи
@@ -97,10 +97,9 @@ TVD_logEvent = {
             if (!(((_data getVariable ["TVD_UnitValue", [sideLogic, 0]]) select 0) in TVD_Sides) || 
                 (_data getVariable ["TVD_soldierRetreats", false]) || 
                 (_data getVariable ["TVD_soldierSentToRes", false])) exitWith {}; // Пропуск, если юнит не участвует или удалён
-            if (count (_data getVariable ["TVD_UnitValue", []]) > 2 && {(_data getVariable "TVD_UnitValue" select 2) in ["soldier"]}) exitWith {}; // Пропуск обычных солдат
             
             private _si0 = TVD_Sides find (_data getVariable "TVD_UnitValue" select 0);
-            if (_data isKindOf "CAManBase") then { // Для пехоты
+            if (_data isKindOf "CAManBase") then { // Для пехоты (КС)
                 _plot = parseText format ["<t size='0.7' shadow='2'><t color='%1'>" + localize "STR_TVD_LogKilledMan" + "</t>", 
                     _sColor select _si0, name _data, 
                     if (count (_data getVariable ["TVD_UnitValue", []]) > 2) then {(_data getVariable "TVD_UnitValue" select 2) call TVD_unitRole} else {""}, 
@@ -113,7 +112,7 @@ TVD_logEvent = {
     };
     
     private _stats = [] call TVD_calculateWin; // Текущие результаты миссии
-    if (!isNil "_stats") then { // Проверка на существование _stats
+    if (!isNil "_stats") then { // Проверка на существование результатов
         private _si0 = TVD_Sides find west;
         private _si1 = TVD_Sides find east;
         private _sidesRatio = parseText format ["<t size='0.7' shadow='2'>(<t color='%1'>%2%</t>-<t color='%3'>%4%</t>) </t>", _sColor select _si0, _stats select 2, _sColor select _si1, _stats select 3];
@@ -128,11 +127,11 @@ TVD_logEvent = {
  *   _outcome: число - причина завершения миссии (0-4)
  */
 TVD_logMission = {
-    params ["_stats", "_outcome" = ""];
-    TVD_ExportLog = [];
+    params ["_stats", "_outcome" = ""]; // Результаты и причина завершения
+    TVD_ExportLog = []; // Массив для экспорта логов
     
     if (_outcome != "") then {
-        _outcome = switch (_outcome) do {
+        _outcome = switch (_outcome) do { // Текст причины завершения
             case 0: {localize "STR_TVD_LogMissionEndAdmin"};
             case 1: {localize "STR_TVD_LogMissionEndTime"};
             case 2: {format [localize "STR_TVD_HeavyLosses", TVD_HeavyLosses]};
@@ -141,23 +140,40 @@ TVD_logMission = {
         };
     };
     
-    private _si0 = TVD_Sides find west;
-    private _si1 = TVD_Sides find east;
+    private _si0 = TVD_Sides find west; // Индекс west в TVD_Sides
+    private _si1 = TVD_Sides find east; // Индекс east в TVD_Sides
     private _pushLine = { // Функция для записи строки в лог и массив экспорта
         params ["_text"];
         diag_log _text;
         TVD_ExportLog pushBack str _text;
     };
     
+    // Сбор техники и контейнеров с WMT_Side для дебрифинга
+    private _vehiclesBluefor = [];
+    private _vehiclesOpfor = [];
+    {
+        private _wmtSide = _x getVariable ["WMT_Side", sideLogic];
+        private _side = if (_wmtSide != sideLogic) then {_wmtSide} else {side _x};
+        if (_side in TVD_BueforAllies) then {
+            _vehiclesBluefor pushBack getText (configFile >> "CfgVehicles" >> typeOf _x >> "displayName"); // Техника bluefor
+        } else if (_side in TVD_OpforAllies) then {
+            _vehiclesOpfor pushBack getText (configFile >> "CfgVehicles" >> typeOf _x >> "displayName"); // Техника opfor
+        };
+    } forEach (vehicles + (allMissionObjects "ReammoBox_F")); // Все машины и контейнеры
+
+    // Формирование отчёта миссии
     [
         "//------------------------------------------------------------//",
-        "TVD Mission Status Report:",
-        format ["Mission date/time: %1", date],
-        format ["missionStart: %1", missionStart],
-        format ["winSide: %1; Supremacy: %2; Ratio: %3 - %4; Score: %5", _stats select 0, _stats select 1, _stats select 2, _stats select 3, _stats select 4],
-        format ["Soldiers Dead: %1 - %2; Present: %3 - %4", (TVD_PlayerCountInit select _si0) - (TVD_PlayerCountNow select _si0) - (TVD_RetrCount select 0), (TVD_PlayerCountInit select _si1) - (TVD_PlayerCountNow select _si1) - (TVD_RetrCount select 1), TVD_PlayerCountNow select _si0, TVD_PlayerCountNow select _si1],
-        format ["EndMission Reason: %1", _outcome],
-        "Vars:",
+        localize "STR_TVD_Log_MissionStatusReport", // Заголовок отчёта
+        format ["Mission date/time: %1", date], // Дата и время миссии
+        format ["missionStart: %1", missionStart], // Время начала миссии
+        format ["winSide: %1; Supremacy: %2; Ratio: %3 - %4; Score: %5", _stats select 0, _stats select 1, _stats select 2, _stats select 3, _stats select 4], // Итоги победы
+        format ["Soldiers Dead: %1 - %2; Present: %3 - %4", 
+            (TVD_PlayerCountInit select _si0) - (TVD_PlayerCountNow select _si0) - (TVD_RetrCount select 0), 
+            (TVD_PlayerCountInit select _si1) - (TVD_PlayerCountNow select _si1) - (TVD_RetrCount select 1), 
+            TVD_PlayerCountNow select _si0, TVD_PlayerCountNow select _si1], // Потери и живые
+        format ["EndMission Reason: %1", _outcome], // Причина завершения
+        "Vars:", // Раздел переменных
         format ["TVD_Sides = %1", TVD_Sides],
         format ["TVD_InitScore = %1", TVD_InitScore],
         format ["TVD_ValUnits = %1", TVD_ValUnits],
@@ -166,11 +182,14 @@ TVD_logMission = {
         format ["TVD_SidesValScore = %1", TVD_SidesValScore],
         format ["TVD_SidesZonesScore = %1", TVD_SidesZonesScore],
         format ["TVD_SidesResScore = %1", TVD_SidesResScore],
-        "Mission Log:"
+        localize "STR_TVD_Debrief_VehiclesAndContainers", // Заголовок техники и контейнеров
+        format [localize "STR_TVD_Debrief_BlueforVehicles", _vehiclesBluefor joinString ", "], // Техника bluefor
+        format [localize "STR_TVD_Debrief_OpforVehicles", _vehiclesOpfor joinString ", "], // Техника opfor
+        "Mission Log:" // Раздел лога событий
     ] apply {[_x] call _pushLine};
     
     {[_x] call _pushLine} forEach TVD_MissionLog; // Добавление всех записей лога
-    ["//------------------------------------------------------------//"] call _pushLine;
+    ["//------------------------------------------------------------//"] call _pushLine; // Завершение отчёта
     
     if (!isNull TVD_Curator) then {
         TVD_ExportLog remoteExec ["TVD_logCurator", TVD_Curator]; // Отправка лога куратору
@@ -185,7 +204,7 @@ TVD_logMission = {
  *   _log: массив - строки лога для вывода
  */
 TVD_logCurator = {
-    diag_log parseText "TVD_ExportLog:"; // Заголовок лога куратора
+    diag_log parseText localize "STR_TVD_Log_ExportLogHeader"; // Заголовок лога куратора
     {diag_log parseText format ["%1", str _x]} forEach _this; // Вывод всех строк лога
 };
 
@@ -200,8 +219,8 @@ TVD_writeDebrief = {
     params ["_outcome", "_stats"];
     private _winner = if (_stats select 0 == sideLogic) then {"-"} else {str (_stats select 0)}; // Победитель или ничья
     private _sColor = ["#ed4545", "#457aed", "#27b413", "#d16be5", "#ffffff"]; // Цвета сторон
-    private _si0 = TVD_Sides find west;
-    private _si1 = TVD_Sides find east;
+    private _si0 = TVD_Sides find west; // Индекс west
+    private _si1 = TVD_Sides find east; // Индекс east
     
     // Текст причины завершения
     private _outcomeText = switch (_outcome) do {
@@ -217,6 +236,24 @@ TVD_writeDebrief = {
         parseText format ["<t align='right' size='0.7' shadow='2' color='%1'>%2</t>", _sColor select (TVD_Sides find (_x select 1)), markerText (_x select 0)]
     };
     
+    // Список техники и контейнеров с WMT_Side для дебрифинга
+    private _vehiclesBluefor = [];
+    private _vehiclesOpfor = [];
+    {
+        private _wmtSide = _x getVariable ["WMT_Side", sideLogic];
+        private _side = if (_wmtSide != sideLogic) then {_wmtSide} else {side _x};
+        if (_side in TVD_BueforAllies) then {
+            _vehiclesBluefor pushBack getText (configFile >> "CfgVehicles" >> typeOf _x >> "displayName"); // Техника bluefor
+        } else if (_side in TVD_OpforAllies) then {
+            _vehiclesOpfor pushBack getText (configFile >> "CfgVehicles" >> typeOf _x >> "displayName"); // Техника opfor
+        };
+    } forEach (vehicles + (allMissionObjects "ReammoBox_F"));
+    private _vehiclesText = composeText [
+        parseText format ["<t size='0.9' underline='true' shadow='2'>%1</t><br/>", localize "STR_TVD_Debrief_VehiclesAndContainers"],
+        parseText format ["<t color='%1'>%2: %3</t><br/>", _sColor select _si0, "Bluefor", _vehiclesBluefor joinString ", "],
+        parseText format ["<t color='%1'>%2: %3</t><br/>", _sColor select _si1, "Opfor", _vehiclesOpfor joinString ", "]
+    ];
+
     // Основной текст дебрифинга
     private _textOut = composeText [
         _outcomeText,
@@ -230,6 +267,7 @@ TVD_writeDebrief = {
         parseText format ["<t color='%1'>%2</t>   <->   <t color='%3'>%4</t>", _sColor select _si0, TVD_PlayerCountNow select _si0, _sColor select _si1, TVD_PlayerCountNow select _si1],
         parseText format ["<t align='right'> <t color='%1'>%2</t>   <->   <t color='%3'>%4</t></t><br/>", _sColor select _si0, (TVD_PlayerCountInit select _si0) - (TVD_PlayerCountNow select _si0) - (TVD_RetrCount select 0), _sColor select _si1, (TVD_PlayerCountInit select _si1) - (TVD_PlayerCountNow select _si1) - (TVD_RetrCount select 1)],
         parseText " ",
+        _vehiclesText, // Добавление списка техники и контейнеров
         parseText format ["<t underline='true' shadow='2'>%1</t>", localize "STR_TVD_DebriefEventLog"],
         parseText format ["<t underline='true' shadow='2' align='right'>%1</t>", localize "STR_TVD_DebriefControlledZones"]
     ];
