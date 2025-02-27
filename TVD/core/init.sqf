@@ -55,7 +55,7 @@ TVD_RetreatRatio = _this param [4, TVD_RetreatRatio]; // Порог отступ
 // Инициализация глобальных переменных состояния миссии
 TVD_capZones = [];                    // Список зон захвата [маркер, сторона, блокировка]
 TVD_InitScore = [0, 0, 0];            // Начальные очки сторон (bluefor, opfor, neutral)
-TVD_ValUnits = [];                    // Список ценных юнитов (техника, КС)
+TVD_ValUnits = [];                    // Список ценных юнитов (техника, КС, КО)
 TVD_TaskObjectsList = [0, 0];         // Счётчики задач для сторон (bluefor, opfor)
 TVD_SoldierCost = TVD_SoldierCost;    // Стоимость солдата из config.sqf
 TVD_RetrCount = [0, 0];               // Счётчик отступлений сторон (bluefor, opfor)
@@ -133,13 +133,14 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
         publicVariable "TVD_OpforPlayers";    // Синхронизация кэшированных списков opfor
     };
     
-    // Присвоение идентификаторов группам и автоматическое назначение КС
-    private _groupMap = createHashMap;
+    // Присвоение идентификаторов группам и назначение ценности КС и КО
+    private _groupMap = createHashMap; // Хэш-карта для хранения групп и их идентификаторов
+    private _sideLeaders = [TVD_BlueforPlayers select 0, TVD_OpforPlayers select 0]; // Список КС для обеих сторон (первые слоты)
     {
         private _side = side _x; // Сторона игрока
-        if (_side in (TVD_BueforAllies + TVD_OpforAllies)) then {
-            private _group = group _x;
-            private _groupStr = str _group splitString " ";
+        if (_side in (TVD_BueforAllies + TVD_OpforAllies)) then { // Проверка, принадлежит ли игрок к сторонам конфликта
+            private _group = group _x; // Группа игрока
+            private _groupStr = str _group splitString " "; // Разделение строки группы на части (например, "Alpha 1-1")
             private _prefix = switch (_groupStr select 1) do { // Префикс группы (A, B, C, D)
                 case "Alpha": {"A"};
                 case "Bravo": {"B"};
@@ -147,13 +148,18 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
                 case "Delta": {"D"};
                 default {""};
             };
-            private _grId = format ["%1%2:%3", _prefix, _groupStr select 2, (units _group find _x) + 1]; // Формат: A1:1
+            private _grId = format ["%1%2:%3", _prefix, _groupStr select 2, (units _group find _x) + 1]; // Формат ID группы: A1:1
             _x setVariable ["TVD_GroupID", _grId, true]; // Установка ID группы для юнита
-            _groupMap set [_group, _grId];
+            _groupMap set [_group, _grId]; // Сохранение группы в хэш-карту
             
-            // Автоматическое назначение первого слота как КС
+            // Назначение КС (первый слот стороны)
             if (_x == (_side call {if (_this in TVD_BueforAllies) then {TVD_BlueforPlayers select 0} else {TVD_OpforPlayers select 0}})) then {
-                _x setVariable ["TVD_UnitValue", [_side, 50, "sideLeader"], true]; // Первый слот становится КС с ценностью 50
+                _x setVariable ["TVD_UnitValue", [_side, 50, "sideLeader"], true]; // КС получает 50 очков и роль "sideLeader"
+            } else {
+                // Назначение КО (командиров отделений) для лидеров групп, кроме КС
+                if (_x == leader _group && !(_x in _sideLeaders)) then {
+                    _x setVariable ["TVD_UnitValue", [_side, 25, "squadLeader"], true]; // КО получает 25 очков и роль "squadLeader"
+                };
             };
         };
     } forEach allPlayers;
@@ -161,19 +167,19 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
     // Ожидание окончания заморозки миссии (a3a_var_started)
     [CBA_fnc_waitUntilAndExecute, {(missionNamespace getVariable ["a3a_var_started", false])}, {
         // Формирование списка групп с учётом союзников
-        private _allGroups = allGroups select {(count units _x > 0) && (side _x in (TVD_BueforAllies + TVD_OpforAllies))};
+        private _allGroups = allGroups select {(count units _x > 0) && (side _x in (TVD_BueforAllies + TVD_OpforAllies))}; // Все активные группы сторон
         TVD_GroupList = _allGroups apply {[str _x, side _x, units _x]}; // Массив: [имя, сторона, юниты]
         {
             private _groupData = _x;
             {   
                 _x setVariable ["TVD_Group", _groupData, true]; // Привязка юнита к группе
                 if (_x == leader _x) then {_x setVariable ["TVD_GroupLeader", true, true]}; // Отметка лидера группы
-            } forEach (_groupData select 2);
+            } forEach (_groupData select 2); // Применение к каждому юниту группы
         } forEach TVD_GroupList;
 
         // Логирование списка игровых юнитов на сервере
         if (isServer) then {
-            TVD_PlayableUnits = allPlayers apply {str _x};
+            TVD_PlayableUnits = allPlayers apply {str _x}; // Список всех игроков в виде строк
             ["init", format [localize "STR_TVD_Init_PlayableUnits", TVD_PlayableUnits joinString ", "]] call TVD_logEvent; // Логирование списка юнитов
             if (!isNull TVD_Curator) then {
                 ["TVD_InitLog", TVD_PlayableUnits] call CBA_fnc_targetEvent; // Отправка лога куратору
@@ -182,62 +188,62 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
 
         // Инициализация зон захвата на основе TVD_CapZonesCount
         if (TVD_CapZonesCount > 0) then {
-            private _logics = allMissionObjects "Logic";
-            for "_i" from 0 to (TVD_CapZonesCount - 1) do {
-                private _markerName = format ["mZone_%1", _i];
-                private _lock = _logics findIf {_x getVariable ["Marker", "false"] == _markerName} != -1;
+            private _logics = allMissionObjects "Logic"; // Все логические объекты миссии
+            for "_i" from 0 to (TVD_CapZonesCount - 1) do { // Цикл по количеству зон
+                private _markerName = format ["mZone_%1", _i]; // Имя маркера зоны (mZone_0, mZone_1 и т.д.)
+                private _lock = _logics findIf {_x getVariable ["Marker", "false"] == _markerName} != -1; // Проверка блокировки зоны
                 TVD_capZones pushBack [_markerName, getMarkerColor _markerName call TVD_colorToSide, _lock]; // [имя маркера, сторона, блокировка]
             };
         };
 
         // Подсчёт начальных очков за зоны с учётом союзников
         {
-            private _side = _x select 1;
-            private _index = if (_side in TVD_BueforAllies) then {0} else {if (_side in TVD_OpforAllies) then {1} else {2}};
+            private _side = _x select 1; // Сторона, владеющая зоной
+            private _index = if (_side in TVD_BueforAllies) then {0} else {if (_side in TVD_OpforAllies) then {1} else {2}}; // Индекс стороны
             TVD_InitScore set [_index, (TVD_InitScore select _index) + TVD_ZoneGain]; // Добавление очков за зону
         } forEach TVD_capZones;
 
         // Составление списка задач из объектов миссии
-        private _allObjects = allMissionObjects "";
+        private _allObjects = allMissionObjects ""; // Все объекты миссии
         TVD_TaskObjectsList = _allObjects select {
-            private _taskData = _x getVariable ["TVD_TaskObject", nil];
+            private _taskData = _x getVariable ["TVD_TaskObject", nil]; // Данные задачи объекта
             if (!isNil "_taskData") then {
-                if (count _taskData < 4) then {_taskData pushBack true}; // Статус задачи
+                if (count _taskData < 4) then {_taskData pushBack true}; // Добавление статуса задачи, если его нет
                 if (count _taskData < 5) then {_taskData pushBack ["false", "false", "false", "false"]; _taskData pushBack false}; // Условия и флаг ключа
-                _x setVariable ["TVD_TaskObject", _taskData, true];
-                _x setVariable ["TVD_TaskObjectStatus", "", true];
+                _x setVariable ["TVD_TaskObject", _taskData, true]; // Обновление данных задачи
+                _x setVariable ["TVD_TaskObjectStatus", "", true]; // Установка статуса задачи
                 true
             } else {false};
         };
 
         // Подсчёт очков за юниты и технику без ручной настройки TVD_UnitValue
-        private _allUnits = allUnits + vehicles;
+        private _allUnits = allUnits + vehicles; // Все юниты и техника на карте
         {
             private _side = side _x; // Сторона юнита по умолчанию
             private _wmtSide = _x getVariable ["WMT_Side", sideLogic]; // Проверка WMT_Side для техники/контейнеров
             if (_wmtSide != sideLogic) then {_side = _wmtSide}; // Переопределение стороны, если задано WMT_Side
             
-            if (_side in (TVD_BueforAllies + TVD_OpforAllies) || _x in vehicles) then {
-                private _unitValue = _x getVariable ["TVD_UnitValue", []]; // Существующие значения TVD_UnitValue (для КС уже задано выше)
-                private _isValuable = _unitValue isNotEqualTo [];
+            if (_side in (TVD_BueforAllies + TVD_OpforAllies) || _x in vehicles) then { // Проверка принадлежности к сторонам или технике
+                private _unitValue = _x getVariable ["TVD_UnitValue", []]; // Существующие значения TVD_UnitValue (для КС/КО уже задано выше)
+                private _isValuable = _unitValue isNotEqualTo []; // Проверка, является ли юнит ценным
                 
-                if (_isValuable) then { // Уже заданные КС или техника
-                    _unitSide = if (_unitValue select 0 in TVD_BueforAllies) then {0} else {if (_unitValue select 0 in TVD_OpforAllies) then {1} else {2}};
+                if (_isValuable) then { // Уже заданные КС, КО или техника
+                    _unitSide = if (_unitValue select 0 in TVD_BueforAllies) then {0} else {if (_unitValue select 0 in TVD_OpforAllies) then {1} else {2}}; // Индекс стороны
                     TVD_InitScore set [_unitSide, (TVD_InitScore select _unitSide) + (_unitValue select 1)]; // Добавление начальных очков
                     TVD_ValUnits pushBack _x; // Добавление в список ценных юнитов
                     
                     if (_unitValue select 2 == "sideLeader" && (_unitValue select 0 in TVD_Sides)) then {
-                        [_x, "mpkilled", ["TVD_hqTransfer", ["slTransfer", _x]]] remoteExec ["call", 2]; // Передача командования при смерти КС
+                        [_x, "mpkilled", ["TVD_hqTransfer", ["slTransfer", _x]]] remoteExec ["call", 2]; // Передача командования при смерти КС на сервере
                     };
-                    [_x, "mpkilled", ["TVD_logEvent", ["killed", _x]]] remoteExec ["call", 2]; // Логирование смерти юнита
+                    [_x, "mpkilled", ["TVD_logEvent", ["killed", _x]]] remoteExec ["call", 2]; // Логирование смерти юнита на сервере
                 } else {
                     if (_x in vehicles) then { // Техника определяется автоматически
                         private _vehicleSide = _side; // Сторона техники из редактора или WMT_Side
-                        private _crew = crew _x;
+                        private _crew = crew _x; // Экипаж техники
                         if (_crew isNotEqualTo []) then {
                             _vehicleSide = side (_crew select 0); // Если есть экипаж, используем его сторону
                         };
-                        if (_vehicleSide in TVD_BueforAllies || _vehicleSide in TVD_OpforAllies) then {
+                        if (_vehicleSide in TVD_BueforAllies || _vehicleSide in TVD_OpforAllies) then { // Проверка принадлежности к сторонам
                             private _isArmed = count (weapons _x) > 0; // Проверка наличия вооружения
                             private _value = switch (true) do { // Оценка ценности техники по типу и вооружению
                                 case (_x isKindOf "Airplane" && _isArmed): {150}; // Вооружённые самолёты - 150 очков
@@ -254,28 +260,28 @@ TVD_StaticWeapons = vehicles select {_x isKindOf "StaticWeapon"};
                                 default {25};                                     // Прочая техника - 25 очков
                             };
                             _unitSide = if (_vehicleSide in TVD_BueforAllies) then {0} else {1}; // Индекс стороны (0 - bluefor, 1 - opfor)
-                            _x setVariable ["TVD_UnitValue", [_vehicleSide, _value, "vehicle"], true]; // Автоматическое задание ценности
-                            TVD_InitScore set [_unitSide, (TVD_InitScore select _unitSide) + _value]; // Добавление начальных очков
+                            _x setVariable ["TVD_UnitValue", [_vehicleSide, _value, "vehicle"], true]; // Автоматическое задание ценности техники
+                            TVD_InitScore set [_unitSide, (TVD_InitScore select _unitSide) + _value]; // Добавление начальных очков за технику
                             TVD_ValUnits pushBack _x; // Добавление в список ценных юнитов
                             _x setVariable ["TVD_CapOwner", _vehicleSide, true]; // Начальный владелец техники
                             _x setVariable ["TVD_SentToRes", 0, true]; // Флаг отправки в резерв
                             _x addEventHandler ["GetIn", {[_this select 0, _this select 2] call TVD_captureVehicle}]; // Обработчик захвата техники
-                            [_x, "mpkilled", ["TVD_logEvent", ["killed", _x]]] remoteExec ["call", 2]; // Логирование уничтожения техники
+                            [_x, "mpkilled", ["TVD_logEvent", ["killed", _x]]] remoteExec ["call", 2]; // Логирование уничтожения техники на сервере
                         };
-                    } else { // Обычные солдаты
-                        _unitSide = if (_side in TVD_BueforAllies) then {0} else {if (_side in TVD_OpforAllies) then {1} else {2}};
-                        TVD_InitScore set [_unitSide, (TVD_InitScore select _unitSide) + TVD_SoldierCost]; // Добавление очков за солдата
+                    } else { // Обычные солдаты (не КС, не КО, не техника)
+                        _unitSide = if (_side in TVD_BueforAllies) then {0} else {if (_side in TVD_OpforAllies) then {1} else {2}}; // Индекс стороны
+                        TVD_InitScore set [_unitSide, (TVD_InitScore select _unitSide) + TVD_SoldierCost]; // Добавление очков за обычного солдата
                     };
                 };
             };
         } forEach _allUnits;
         
-        // Синхронизация списка ценных юнитов
+        // Синхронизация списка ценных юнитов на сервере
         if (isServer) then {publicVariable "TVD_ValUnits"};
 
-        // Подключение клиентского интерфейса администратора
+        // Подключение клиентского интерфейса администратора для не-dedicated серверов
         if (!isDedicated) then {
             call compile preprocessFileLineNumbers "TVD\client\admin_menu.sqf"; // Загрузка интерфейса администратора
         };
-    }] call CBA_fnc_waitUntilAndExecute; // Ожидание окончания заморозки
+    }] call CBA_fnc_waitUntilAndExecute; // Ожидание окончания заморозки миссии
 }] call CBA_fnc_waitUntilAndExecute; // Ожидание начала миссии
