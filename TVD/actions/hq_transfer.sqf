@@ -28,18 +28,38 @@ TVD_hqTransfer = {
             alive _leader
         ) then {
             _found = true;
-            _unitValue set [2, "execSideLeader"]; // Назначение исполняющим обязанности
-            _leader setVariable ["TVD_UnitValue", _unitValue, true]; // Обновление данных юнита
-            
-            [_leader, "mpkilled", ["TVD_hqTransfer", ["slTransfer", _leader]]] remoteExec ["call", 2]; // Добавление обработчика смерти новому командиру
-            [_leader, "Вы приняли командование.", "dynamic"] call TVD_notifyPlayers; // Уведомление новому командиру
-            [[side group _leader, format ["КС убит. %1 принял командование.", name _leader]], "TaskAssigned"] call TVD_notifySide; // Уведомление стороне
+            [_leader, _side] call TVD_assignNewCommander; // Используем общую функцию для назначения
             break;
         };
     } forEach (allGroups select {side _x == _side});
 
-    // Сообщение, если командир не найден
+    // Исправление средней проблемы: если нет подходящего лидера группы, ищем любого живого игрока на стороне
     if (!_found) then {
-        [_side, "КС убит. Некому принять командование.", "dynamic"] call TVD_notifySide;
+        private _fallback = allPlayers findIf {side group _x == _side && alive _x && isPlayer _x};
+        if (_fallback != -1) then {
+            private _newLeader = allPlayers select _fallback;
+            [_newLeader, _side] call TVD_assignNewCommander; // Используем общую функцию для назначения
+        } else {
+            [_side, "КС убит. Некому принять командование.", "dynamic"] call TVD_notifySide; // Сообщение стороне
+            diag_log "TVD/hq_transfer.sqf: No eligible commander found";
+        };
     };
+};
+
+/*
+ * Назначает нового командира стороне
+ * Параметры:
+ *   _newLeader: объект - новый командир
+ *   _side: сторона - сторона, которой передаётся командование
+ */
+TVD_assignNewCommander = {
+    params ["_newLeader", "_side"];
+    private _unitValue = _newLeader getVariable ["TVD_UnitValue", []];
+    if (_unitValue isNotEqualTo []) then { _unitValue set [2, "execSideLeader"]; } // Обновляем роль, если уже есть TVD_UnitValue
+    else { _unitValue = [_side, 50, "execSideLeader"]; }; // Создаём новое значение, если его нет
+    _newLeader setVariable ["TVD_UnitValue", _unitValue, true]; // Назначение исполняющим обязанности
+    [_newLeader, "mpkilled", ["TVD_hqTransfer", ["slTransfer", _newLeader]]] remoteExec ["call", 2]; // Добавление обработчика смерти новому командиру
+    [_newLeader, "Вы приняли командование.", "dynamic"] call TVD_notifyPlayers; // Уведомление новому командиру
+    [[side group _newLeader, format ["КС убит. %1 принял командование.", name _newLeader]], "TaskAssigned"] call TVD_notifySide; // Уведомление стороне
+    diag_log format ["TVD/hq_transfer.sqf: New commander assigned: %1", name _newLeader];
 };

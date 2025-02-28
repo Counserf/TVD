@@ -11,15 +11,16 @@ TVD_monitorHeavyLosses = {
     if (isNil "TVD_hl_ratio") then {TVD_hl_ratio = TVD_CriticalLossRatio};
 
     waitUntil {sleep 1.5; time > 60}; // Ожидание начала миссии (1 минута)
-    waitUntil {sleep 2; missionNamespace getVariable ["a3a_var_started", false]}; // Ожидание окончания заморозки
+    [] call TVD_waitForStart; // Используем общую функцию ожидания старта миссии
 
-    // Инициализация начального числа игроков с учётом союзников
+    // Исправление: фиксируем состав сторон один раз после a3a_var_started
     if (isNil "TVD_BlueforPlayers" || isNil "TVD_OpforPlayers") then { diag_log "TVD/heavy_losses.sqf: Player lists not initialized"; };
     TVD_PlayerCountInit = [
-        count TVD_BlueforPlayers, // Используем кэшированный список
-        count TVD_OpforPlayers,   // Используем кэшированный список
+        count TVD_BlueforPlayers, // Используем кэшированный список один раз
+        count TVD_OpforPlayers,   // Используем кэшированный список один раз
         0 // Резерв для совместимости
     ];
+    diag_log format ["TVD/heavy_losses.sqf: Initial player count fixed - Bluefor: %1, Opfor: %2", TVD_PlayerCountInit select 0, TVD_PlayerCountInit select 1];
 
     // Асинхронный мониторинг потерь
     [CBA_fnc_addPerFrameHandler, {
@@ -58,4 +59,14 @@ TVD_monitorHeavyLosses = {
             };
         } forEach [0, 1]; // Проверка только для bluefor и opfor
     }, 10] call CBA_fnc_addPerFrameHandler; // Проверка каждые 10 секунд
+};
+
+/*
+ * Ожидает старта миссии
+ * Параметры:
+ *   _checkPlayer: логическое (опционально) - проверять ли наличие игрока
+ */
+TVD_waitForStart = {
+    params [["_checkPlayer", false]];
+    waitUntil {sleep 2; missionNamespace getVariable ["a3a_var_started", false] && (!_checkPlayer || !isNull player)};
 };

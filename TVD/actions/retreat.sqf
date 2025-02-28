@@ -22,8 +22,8 @@ TVD_retreatSide = {
         [_x, _retLossLog] call TVD_retreatSoldier; // Индивидуальное отступление с обновлением лога
     } forEach _retreatUnits;
     
-    // Передача техники врагу
-    private _lostVehicles = TVD_ValUnits select {!(_x in list _trigger) && (_x getVariable "TVD_UnitValue" select 0) == _side};
+    // Передача техники врагу только если она вне базы
+    private _lostVehicles = TVD_ValUnits select {!(_x in list _trigger) && (_x getVariable "TVD_UnitValue" select 0) == _side}; // Изменение: техника на базе не передаётся
     {
         _x setVariable ["TVD_CapOwner", _enemySide, true]; // Смена владельца техники
         _retLossLog = composeText [_retLossLog, parseText format ["%1, ", getText (configFile >> "CfgVehicles" >> typeOf _x >> "displayName")]]; // Добавление в лог
@@ -51,8 +51,7 @@ TVD_retreatSoldier = {
     private _unitName = name _unit; // Имя юнита для уведомлений и лога
     
     // Уведомление ближайших игроков в радиусе 50 метров
-    private _notifyUnits = (ASLToAGL getPosASL _unit nearEntities ["CAManBase", 50]) select {isPlayer _x};
-    [_notifyUnits, format ["%1 отступил в тыл.", _unitName], "title"] call TVD_notifyPlayers;
+    [_unit, _unitName] call TVD_notifyRetreat; // Используем общую функцию уведомления
     
     // Уведомление самому игроку, если он жив
     if (isPlayer _unit) then {[_unit, "Вы отступили в тыл.", "dynamic"] call TVD_notifyPlayers};
@@ -68,7 +67,7 @@ TVD_retreatSoldier = {
         ["TVD_RetreatUpdate", [_us, _amount]] call CBA_fnc_globalEvent; // Синхронизация через CBA-ивент
         
         _unit setDamage 1; // Уничтожение юнита
-        [_unit] spawn {sleep 2; if (!isNull (_this select 0)) then {deleteVehicle (_this select 0)}}; // Асинхронное удаление через 2 секунды
+        [_unit] call TVD_safeDelete; // Используем общую функцию удаления
         
         // Формирование данных для лога
         private _passData = [_unitName, side group _unit, if (count _unitValue > 2) then {(_unitValue select 2) call TVD_unitRole} else {""}, _unit getVariable ["TVD_GroupID", ""]];
@@ -79,4 +78,27 @@ TVD_retreatSoldier = {
     };
     
     if (!isNil "_log") then {_log}; // Возвращаем обновлённый лог, если он передан
+};
+
+/*
+ * Уведомляет о отступлении юнита
+ * Параметры:
+ *   _unit: объект - юнит, который отступает
+ *   _unitName: строка - имя юнита
+ */
+TVD_notifyRetreat = {
+    params ["_unit", "_unitName"];
+    private _notifyUnits = (ASLToAGL getPosASL _unit nearEntities ["CAManBase", 50]) select {isPlayer _x};
+    [_notifyUnits, format ["%1 отступил в тыл.", _unitName], "title"] call TVD_notifyPlayers;
+};
+
+/*
+ * Безопасно удаляет объект с задержкой
+ * Параметры:
+ *   _object: объект - объект для удаления
+ */
+TVD_safeDelete = {
+    params ["_object"];
+    sleep 2;
+    if (!isNull _object) then {deleteVehicle _object}; // Убрана проверка экипажа
 };
